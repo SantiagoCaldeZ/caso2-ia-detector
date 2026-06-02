@@ -38,3 +38,6 @@ Link: ./docs/architecture/system-integrations.md
 
 ## MVP Local Execution
 Pending.
+
+## Frontend Design
+- [Frontend Design Document](./docs/frontend/frontend-design.md)
