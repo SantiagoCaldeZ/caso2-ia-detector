@@ -88,8 +88,11 @@ caso2-ia-detector/
 │   ├── diagrams/
 │   │   └── goal-map.png
 │   │
-│   └── pitch/
-│       └── demo-script.md
+│   ├── pitch/
+│   │   └── demo-script.md
+│   │
+│   ├── implementation/
+│   │   └── mvp-implementation-plan.md
 │
 ├── src/
 │   ├── frontend/
@@ -169,6 +172,12 @@ Current architecture decisions include:
 - [Backend Design Document](./docs/backend/backend-design.md)
 - [Database Design Document](./docs/data/database-design.md)
 - [DBML Model](./database/dbml/ia-detector.dbml)
+
+---
+
+## MVP Implementation Plan
+
+- [MVP Implementation Plan](./docs/implementation/mvp-implementation-plan.md)
 
 ---
 
