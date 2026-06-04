@@ -37,60 +37,72 @@ La IA no publica contenido ni declara verdad absoluta. Solo decide si el caso pa
 
 | Componente | Ubicación en `/src` | Responsabilidad | Input | Output |
 |---|---|---|---|---|
-| `VerificationAgentOrchestrator` | `/src/backend/agents/verification/VerificationAgentOrchestrator.ts` | Coordina el análisis del caso. | `caseId` | `AgentDecisionResult` |
-| `ClaimExtractionTool` | `/src/backend/agents/tools/ClaimExtractionTool.ts` | Extrae la afirmación principal. | Texto o enlace | `ClaimCandidate[]` |
-| `EvidenceSearchTool` | `/src/backend/agents/tools/EvidenceSearchTool.ts` | Busca evidencia y verificaciones previas. | `ClaimCandidate` | `EvidenceResult[]` |
-| `RiskSignalAnalyzer` | `/src/backend/agents/tools/RiskSignalAnalyzer.ts` | Calcula señales de riesgo. | Texto y evidencia | `RiskSignal[]` |
-| `AIDecisionGate` | `/src/backend/application/editorial/AIDecisionGate.ts` | Decide si el caso pasa, no pasa o va a revisión humana. | Evidencia y riesgos | `PASS`, `NO_PASS`, `HUMAN_REVIEW` |
-| `EditorDecisionController` | `/src/backend/api/controllers/EditorDecisionController.ts` | Recibe decisión humana solo si el caso queda en `HUMAN_REVIEW`. | Decisión del editor | Estado final |
+| `CreateVerificationCaseService` | `/src/backend/application/verification/CreateVerificationCaseService.ts` | Orquesta el flujo completo de verificación. | `CreateVerificationRequestDTO` | `VerificationResultDTO` |
+| `ClaimExtractionService` | `/src/backend/application/claims/ClaimExtractionService.ts` | Extrae la afirmación principal usando `AIAmbassador`. | Texto normalizado | `ClaimCandidate` |
+| `FactCheckEvidenceService` | `/src/backend/application/evidence/FactCheckEvidenceService.ts` | Busca evidencia y verificaciones previas. | `ClaimCandidate` | `EvidenceResult[]` |
+| `RiskAnalysisService` | `/src/backend/application/risk/RiskAnalysisService.ts` | Calcula señales de riesgo. | Texto y evidencia | `RiskSignal[]` |
+| `EvidenceScoreService` | `/src/backend/application/scoring/EvidenceScoreService.ts` | Calcula `evidenceScore`. | Evidencia | `number` |
+| `RiskScoreService` | `/src/backend/application/scoring/RiskScoreService.ts` | Calcula `riskScore`. | Señales de riesgo | `number` |
+| `SourceAgreementService` | `/src/backend/application/scoring/SourceAgreementService.ts` | Calcula `sourceAgreement`. | Evidencia | `HIGH`, `MEDIUM`, `LOW` |
+| `AIDecisionGate` | `/src/backend/application/verification/AIDecisionGate.ts` | Decide `PASS`, `NO_PASS` o `HUMAN_REVIEW`. | Scores y evidencia | `AgentDecisionResult` |
 
 ## Métodos principales
 
 | Clase | Método |
 |---|---|
-| `VerificationAgentOrchestrator` | `run(caseId)` |
-| `ClaimExtractionTool` | `extract(rawText)` |
-| `EvidenceSearchTool` | `search(claim)` |
-| `RiskSignalAnalyzer` | `analyze(rawText, evidence)` |
-| `AIDecisionGate` | `decide(evidenceScore, riskScore, sourceAgreement)` |
-| `EditorDecisionController` | `submitDecision(caseId, decision)` |
+| `CreateVerificationCaseService` | `execute(request: CreateVerificationRequestDTO)` |
+| `ClaimExtractionService` | `extractClaim(rawText: string)` |
+| `FactCheckEvidenceService` | `searchEvidence(claim: ClaimCandidate)` |
+| `RiskAnalysisService` | `analyze(rawText: string, evidence: EvidenceResult[])` |
+| `EvidenceScoreService` | `calculate(evidence: EvidenceResult[])` |
+| `RiskScoreService` | `calculate(riskSignals: RiskSignal[])` |
+| `SourceAgreementService` | `calculate(evidence: EvidenceResult[])` |
+| `AIDecisionGate` | `decide(input: AIDecisionGateInput)` |
 
 ## Diagrama
 
 ~~~text
 +------------------------------------------------------+
-|             VerificationAgentOrchestrator            |
+|              CreateVerificationCaseService           |
 |------------------------------------------------------|
-| + run(caseId)                                        |
-| + coordinateAnalysis()                               |
+| + execute(request)                                   |
+| + orchestrateVerification()                          |
 +------------------------------------------------------+
                          |
                          v
-+---------------------------+
-|   ClaimExtractionTool     |
-|---------------------------|
-| + extract(rawText)        |
-+---------------------------+
++------------------------------------------------------+
+|                ClaimExtractionService                |
+|------------------------------------------------------|
+| + extractClaim(rawText)                              |
++------------------------------------------------------+
                          |
                          v
-+---------------------------+
-|   EvidenceSearchTool      |
-|---------------------------|
-| + search(claim)           |
-+---------------------------+
++------------------------------------------------------+
+|                FactCheckEvidenceService              |
+|------------------------------------------------------|
+| + searchEvidence(claim)                              |
++------------------------------------------------------+
                          |
                          v
-+---------------------------+
-|   RiskSignalAnalyzer      |
-|---------------------------|
-| + analyze(text, evidence) |
-+---------------------------+
++------------------------------------------------------+
+|                  RiskAnalysisService                 |
+|------------------------------------------------------|
+| + analyze(rawText, evidence)                         |
++------------------------------------------------------+
                          |
                          v
++---------------------------+     +---------------------------+     +---------------------------+
+|   EvidenceScoreService    |     |      RiskScoreService     |     |  SourceAgreementService   |
+|---------------------------|     |---------------------------|     |---------------------------|
+| + calculate(evidence)     |     | + calculate(riskSignals)  |     | + calculate(evidence)     |
++---------------------------+     +---------------------------+     +---------------------------+
+              \                         |                         /
+               \                        |                        /
+                v                       v                       v
 +------------------------------------------------------+
 |                    AIDecisionGate                    |
 |------------------------------------------------------|
-| + decide(evidenceScore, riskScore, sourceAgreement)  |
+| + decide(input)                                      |
 | + calculateDecision()                                |
 +------------------------------------------------------+
               |                    |                  |
@@ -100,18 +112,16 @@ La IA no publica contenido ni declara verdad absoluta. Solo decide si el caso pa
        +-------------+     +---------------+   +----------------+
               |                    |                  |
               v                    v                  v
-+---------------------+  +---------------------+  +--------------------------+
-| Editorial Queue     |  | Case Closed / Hold  |  | EditorDecisionController |
-| READY_FOR_REVIEW    |  | NOT_VERIFIABLE      |  | + submitDecision()       |
-+---------------------+  +---------------------+  +--------------------------+
++---------------------+  +---------------------+  +----------------------+
+| READY_FOR_REVIEW    |  | NOT_VERIFIABLE      |  | Manual Review Needed |
++---------------------+  +---------------------+  +----------------------+
               \                    |                  /
                \                   |                 /
                 v                  v                v
 +------------------------------------------------------+
-|                    AuditLogService                   |
+|                    AuditLogRepository                |
 |------------------------------------------------------|
-| + recordAgentDecision()                              |
-| + recordHumanDecision()                              |
+| + create(event)                                      |
 +------------------------------------------------------+
 ~~~
 

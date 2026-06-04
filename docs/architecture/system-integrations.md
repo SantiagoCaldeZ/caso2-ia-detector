@@ -211,8 +211,8 @@ Design response:
 |---|---|---|
 | `GoogleFactCheckClient` | `/src/backend/infrastructure/integrations/factcheck/GoogleFactCheckClient.ts` | Executes HTTP requests to Google Fact Check Tools API. |
 | `GoogleFactCheckAdapter` | `/src/backend/infrastructure/integrations/factcheck/GoogleFactCheckAdapter.ts` | Converts provider response into internal DTOs. |
-| `FactCheckCacheService` | `/src/backend/application/factcheck/FactCheckCacheService.ts` | Reads and writes cached fact-check results. |
-| `FactCheckEvidenceService` | `/src/backend/application/factcheck/FactCheckEvidenceService.ts` | Orchestrates cache lookup, provider call, and DTO mapping. |
+| `FactCheckEvidenceService` | `/src/backend/application/evidence/FactCheckEvidenceService.ts` | Orchestrates cache lookup, provider call, and DTO mapping. |
+| `FactCheckCacheRepository` | `/src/backend/infrastructure/persistence/repositories/FactCheckCacheRepository.ts` | Reads and writes cached fact-check results. |
 | `FactCheckResultDTO` | `/src/backend/domain/factcheck/FactCheckResultDTO.ts` | Internal representation of one fact-check evidence result. |
 | `FactCheckSearchRequestDTO` | `/src/backend/domain/factcheck/FactCheckSearchRequestDTO.ts` | Internal request used to query fact-check evidence. |
 | `ExternalProviderException` | `/src/backend/shared/errors/ExternalProviderException.ts` | Controlled exception for provider failures. |
@@ -234,7 +234,7 @@ Design response:
              |                         |
              v                         v
 +-----------------------------+   +-----------------------------+
-|     FactCheckCacheService   |   |    GoogleFactCheckClient    |
+|  FactCheckCacheRepository   |   |    GoogleFactCheckClient    |
 |-----------------------------|   |-----------------------------|
 | + get(cacheKey)             |   | + searchClaims(request)     |
 | + set(cacheKey, result, ttl)|   | + buildRequest(query)       |
@@ -271,15 +271,15 @@ Design response:
 
 ## Main Flow
 
-1. `VerificationAgentOrchestrator` requests evidence for a claim.
+1. `CreateVerificationCaseService` requests evidence for a claim.
 2. `FactCheckEvidenceService.searchEvidence(claim)` receives the claim.
 3. `FactCheckEvidenceService` normalizes the claim text.
 4. `FactCheckEvidenceService` builds a cache key.
-5. `FactCheckCacheService.get(cacheKey)` checks for cached evidence.
+5. `FactCheckCacheRepository.get(cacheKey)` checks for cached evidence.
 6. If cache exists, cached evidence is returned.
 7. If cache does not exist, `GoogleFactCheckClient.searchClaims(request)` calls the provider.
 8. `GoogleFactCheckAdapter` validates and maps the provider response.
-9. `FactCheckCacheService.set(cacheKey, result, ttl)` stores the mapped result.
+9. `FactCheckCacheRepository.set(cacheKey, result, ttl)` stores the mapped result.
 10. `FactCheckEvidenceService` returns `FactCheckResultDTO[]` to the verification workflow.
 
 ---

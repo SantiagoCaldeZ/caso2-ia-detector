@@ -78,8 +78,11 @@ caso2-ia-detector/
 │   │   ├── architectural-patterns.md
 │   │   └── agentic-patterns.md
 │   │
-│   └── pitch/
-│       └── demo-script.md
+│   ├── pitch/
+│   │   └── demo-script.md
+│   ├── diagrams/
+│   │   └── goal-map.png
+│   │
 │
 ├── src/
 │   ├── frontend/
@@ -148,7 +151,9 @@ Current architecture decisions include:
 
 ## Backend and Data Design
 
-Pending.
+- [Backend Design Document](./docs/backend/backend-design.md)
+
+Data design will be documented separately.
 
 This section will later include:
 
@@ -242,10 +247,10 @@ Avoid generic descriptions such as “use best practices”, “handle errors”
 | MVP scope | In progress |
 | UX testing plan | In progress |
 | Frontend design | Created |
-| System integrations | Pending refinement |
-| Architectural patterns | Pending refinement |
+| System integrations | Created |
+| Architectural patterns | Created |
 | Agentic patterns | Pending refinement |
-| Backend design | Pending |
+| Backend design | Created |
 | Data design | Pending |
 | MVP implementation | Pending |
 | Sales pitch | Pending |
