@@ -59,6 +59,7 @@ Full MVP scope is documented here:
 ```text
 caso2-ia-detector/
 ├── README.md
+│
 ├── docs/
 │   ├── product/
 │   │   ├── problem-statement.md
@@ -73,16 +74,22 @@ caso2-ia-detector/
 │   ├── frontend/
 │   │   └── frontend-design.md
 │   │
+│   ├── backend/
+│   │   └── backend-design.md
+│   │
+│   ├── data/
+│   │   └── database-design.md
+│   │
 │   ├── architecture/
 │   │   ├── system-integrations.md
 │   │   ├── architectural-patterns.md
 │   │   └── agentic-patterns.md
 │   │
-│   ├── pitch/
-│   │   └── demo-script.md
 │   ├── diagrams/
 │   │   └── goal-map.png
 │   │
+│   └── pitch/
+│       └── demo-script.md
 │
 ├── src/
 │   ├── frontend/
@@ -90,10 +97,18 @@ caso2-ia-detector/
 │
 ├── database/
 │   ├── dbml/
+│   │   └── ia-detector.dbml
+│   │
 │   ├── migrations/
+│   │
 │   └── seed/
+│       └── README.md
+│
+├── prisma/
+│   └── schema.prisma
 │
 └── agents/
+    └── README.md
 ```
 
 ---
@@ -228,13 +243,19 @@ Avoid generic descriptions such as “use best practices”, “handle errors”
 |---|---|
 | Repository structure | Created |
 | Problem statement | Created |
-| MVP scope | In progress |
-| UX testing plan | In progress |
+| MVP scope | Created |
+| UX prototype requirements | Created |
+| UX testing plan | Created |
+| UX testing results | Pending testing |
 | Frontend design | Created |
 | System integrations | Created |
 | Architectural patterns | Created |
-| Agentic patterns | Pending refinement |
+| Agentic patterns | Created |
 | Backend design | Created |
-| Data design | Pending |
+| Data design | Created |
+| DBML model | Created |
+| Prisma schema | Created |
+| Seed data plan | Created |
+| AI development agents | Created |
 | MVP implementation | Pending |
 | Sales pitch | Pending |

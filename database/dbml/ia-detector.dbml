@@ -238,7 +238,7 @@ Table audit_logs {
 
 Table fact_check_cache {
   id uuid [pk, not null, default: `gen_random_uuid()`]
-  cache_key varchar(255) [not null, unique]
+  cache_key varchar(255) [not null]
   normalized_claim text [not null]
   provider varchar(100) [not null]
   response_data jsonb [not null]
