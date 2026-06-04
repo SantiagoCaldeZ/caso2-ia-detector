@@ -217,7 +217,7 @@ model AuditLog {
 
 model FactCheckCache {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cacheKey        String   @unique @map("cache_key") @db.VarChar(255)
+  cacheKey        String   @unique(map: "fact_check_cache_key_unique") @map("cache_key") @db.VarChar(255)
   normalizedClaim String   @map("normalized_claim")
   provider        String   @db.VarChar(100)
   responseData    Json     @map("response_data")
@@ -225,7 +225,6 @@ model FactCheckCache {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  @@index([cacheKey], map: "fact_check_cache_key_unique")
   @@index([expiresAt], map: "fact_check_cache_expires_idx")
   @@index([provider], map: "fact_check_cache_provider_idx")
   @@map("fact_check_cache")
