@@ -198,9 +198,9 @@ This section will later include:
 
 ## AI Development Agents
 
-Pending.
+- [AI Development Agents](./agents/README.md)
 
-This section will later document the specialized agents required for MVP construction:
+This document defines the specialized agents required for MVP construction:
 
 - SOLID reviewer agent,
 - architecture validation agent,
@@ -266,5 +266,6 @@ Avoid generic descriptions such as “use best practices”, “handle errors”
 | Prisma schema | Created |
 | Seed data plan | Created |
 | AI development agents | Created |
+| MVP implementation plan | Created |
 | MVP implementation | Pending |
 | Sales pitch | Pending |
