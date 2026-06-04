@@ -152,24 +152,8 @@ Current architecture decisions include:
 ## Backend and Data Design
 
 - [Backend Design Document](./docs/backend/backend-design.md)
-
-Data design will be documented separately.
-
-This section will later include:
-
-- backend technology stack,
-- backend layers,
-- business workflows,
-- API endpoints,
-- DTOs,
-- validation rules,
-- database design,
-- DBML,
-- migrations,
-- seed data,
-- security,
-- observability,
-- testing strategy.
+- [Database Design Document](./docs/data/database-design.md)
+- [DBML Model](./database/dbml/ia-detector.dbml)
 
 ---
 
