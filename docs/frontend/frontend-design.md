@@ -116,6 +116,8 @@
 
 *Tool used for wireframing* – **Figma**
 
+Prototype link: [IA Detector Figma Prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1)
+
 Figma will be used to create the low-fidelity and interactive prototype for the main IA Detector workflow:
 1. Select input type.
 2. Submit suspicious content.
@@ -162,6 +164,8 @@ Figma will be used to create the low-fidelity and interactive prototype for the 
 The UX test will be conducted with at least 4 design students who are not members of the IA Detector team.
 
 *Tool* – **Maze**
+
+Maze test link: [IA Detector Maze Test](https://t.maze.co/545947273)
 
 Maze will be used to test the Figma prototype and collect task completion, time on task, hesitation points, comments and usability issues.
 

@@ -24,13 +24,14 @@ Maze will be used to test the Figma prototype with users and collect task comple
 
 ---
 
-## Prototype Link
+## Prototype Links
 
-Pending.
+| Artifact | Link | Status |
+|---|---|---|
+| Figma prototype | [IA Detector Figma Prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1) | Available for review |
+| Maze UX test | [IA Detector Maze Test](https://t.maze.co/545947273) | Available for participant testing |
 
-Add the Figma prototype link here when available:
-
-[IA Detector Figma Prototype](#)
+The Figma link is the source of truth for the current interactive prototype. The Maze link is used to execute UX testing tasks and collect participant results.
 
 ---
 
@@ -333,8 +334,8 @@ The prototype is ready for UX testing when:
 
 | Item | Status |
 |---|---|
-| Add Figma prototype link | Pending |
-| Add Maze test link | Pending |
+| Add Figma prototype link | Completed |
+| Add Maze test link | Completed |
 | Add screenshots of prototype screens | Pending |
 | Validate prototype with 4 external design students | Pending |
 | Document UX testing results | Pending |

@@ -113,7 +113,7 @@ La IA no publica contenido ni declara verdad absoluta. Solo decide si el caso pa
               |                    |                  |
               v                    v                  v
 +---------------------+  +---------------------+  +----------------------+
-| READY_FOR_REVIEW    |  | NOT_VERIFIABLE      |  | Manual Review Needed |
+| Status: PASS        |  | Status: NO_PASS     |  | Status: HUMAN_REVIEW |
 +---------------------+  +---------------------+  +----------------------+
               \                    |                  /
                \                   |                 /
@@ -139,7 +139,7 @@ La IA no publica contenido ni declara verdad absoluta. Solo decide si el caso pa
 | Caso | Respuesta |
 |---|---|
 | No se puede extraer una afirmación | `HUMAN_REVIEW` con ingreso manual de claim. |
-| No se encuentra evidencia | `NO_PASS` o `NOT_VERIFIABLE`. |
+| No se encuentra evidencia | `NO_PASS`. |
 | Fuentes contradictorias | `HUMAN_REVIEW`. |
 | Falla la IA | `HUMAN_REVIEW` por seguridad. |
 | Usuario sin permisos decide | `ACCESS_DENIED`. |
@@ -149,7 +149,14 @@ La IA no publica contenido ni declara verdad absoluta. Solo decide si el caso pa
 
 | Estado | Significado |
 |---|---|
-| `READY_FOR_REVIEW` | El caso pasó el análisis automático y puede avanzar a revisión editorial. |
-| `NOT_VERIFIABLE` | No hay evidencia suficiente para sostener el contenido. |
-| `HUMAN_REVIEW` | El caso requiere decisión humana por ambigüedad o riesgo medio. |
-| `ACCESS_DENIED` | Un usuario sin permisos intentó tomar una decisión. |
+| `PASS` | El caso puede avanzar a revisión editorial con la evidencia disponible. |
+| `NO_PASS` | El caso no debe avanzar con la evidencia disponible. |
+| `HUMAN_REVIEW` | El caso es ambiguo y requiere revisión humana. |
+
+## Estados de error relacionados
+
+| Estado / error | Significado |
+|---|---|
+| `ACCESS_DENIED` | Un usuario sin permisos intentó tomar una decisión o consultar un caso restringido. |
+| `AI_PROVIDER_FAILED` | El proveedor o mock de IA falló y el caso debe ir a `HUMAN_REVIEW` si existe evidencia parcial. |
+| `FACT_CHECK_PROVIDER_FAILED` | La fuente externa de evidencia falló y el sistema debe continuar con evidencia parcial cuando sea posible. |

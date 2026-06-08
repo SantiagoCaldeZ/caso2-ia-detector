@@ -17,6 +17,8 @@ The test focuses on the MVP flow:
 
 **Figma**
 
+Prototype link: [IA Detector Figma Prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1)
+
 The Figma prototype will simulate:
 
 - Dashboard / Verification Hub.
@@ -32,6 +34,8 @@ The Figma prototype will simulate:
 ## UX Testing Tool
 
 **Maze**
+
+Maze test link: [IA Detector Maze Test](https://t.maze.co/545947273)
 
 Maze will be used to run the test with participants and collect:
 

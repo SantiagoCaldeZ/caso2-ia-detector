@@ -2,11 +2,14 @@
 
 ## Status
 
-Pending.
+Ready for testing. Results are pending participant completion.
 
-UX testing results will be completed after the Figma prototype is tested in Maze with at least 4 design students who are not members of the IA Detector team.
+The Figma prototype and Maze test are already available. This document must be updated after the Maze testing sessions with real observations, metrics, detected issues, and corrections applied to the prototype.
 
-This document must be updated after the testing sessions with real observations, metrics, detected issues, and corrections applied to the prototype.
+| Artifact | Link | Status |
+|---|---|---|
+| Figma prototype | [IA Detector Figma Prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1) | Available |
+| Maze UX test | [IA Detector Maze Test](https://t.maze.co/545947273) | Available |
 
 ---
 
@@ -17,7 +20,7 @@ This document must be updated after the testing sessions with real observations,
 | Prototype tool | Figma |
 | UX testing tool | Maze |
 | Participants required | At least 4 external design students |
-| Current status | Pending testing |
+| Current status | Ready for testing; results pending participant completion |
 | Main flow tested | Submit suspicious content, receive classification, review evidence and risk signals |
 | Result states tested | `PASS`, `NO_PASS`, `HUMAN_REVIEW` |
 
@@ -108,8 +111,8 @@ This document must be updated after the testing sessions with real observations,
 
 After the UX testing sessions, this document must include or reference:
 
-- Maze test link.
-- Figma prototype link.
+- Maze test link: [IA Detector Maze Test](https://t.maze.co/545947273).
+- Figma prototype link: [IA Detector Figma Prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1).
 - Screenshots of the tested prototype.
 - Maze results screenshots or exported data.
 - Participant observations.

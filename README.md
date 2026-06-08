@@ -130,7 +130,12 @@ caso2-ia-detector/
 - [UX Testing Plan](./docs/ux/ux-testing-plan.md)
 - [UX Testing Results](./docs/ux/ux-testing-results.md)
 
-The UX prototype will be created in **Figma** and tested using **Maze** with at least 4 design students who are not members of the IA Detector team.
+External UX artifacts:
+
+- [Figma Prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1)
+- [Maze UX Test](https://t.maze.co/545947273)
+
+The UX prototype is created in **Figma** and tested using **Maze** with at least 4 design students who are not members of the IA Detector team. UX testing results remain pending until participants complete the Maze test.
 
 ---
 
@@ -254,8 +259,10 @@ Avoid generic descriptions such as “use best practices”, “handle errors”
 | Problem statement | Created |
 | MVP scope | Created |
 | UX prototype requirements | Created |
+| Figma prototype link | Added |
 | UX testing plan | Created |
-| UX testing results | Pending testing |
+| Maze test link | Added |
+| UX testing results | Pending participant completion |
 | Frontend design | Created |
 | System integrations | Created |
 | Architectural patterns | Created |
@@ -268,4 +275,5 @@ Avoid generic descriptions such as “use best practices”, “handle errors”
 | AI development agents | Created |
 | MVP implementation plan | Created |
 | MVP implementation | Pending |
-| Sales pitch | Pending |
+| Sales pitch draft | Created |
+| Sales pitch final | Pending |
