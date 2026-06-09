@@ -26,10 +26,14 @@ Enum verification_input_type {
 Enum verification_status {
   CREATED
   PROCESSING
-  PASS
-  NO_PASS
-  HUMAN_REVIEW
+  COMPLETED
   FAILED
+}
+
+Enum recommended_action {
+  READY_FOR_EDITORIAL_REVIEW
+  DO_NOT_PUBLISH_YET
+  NEEDS_MANUAL_REVIEW
 }
 
 Enum source_agreement {
@@ -148,7 +152,8 @@ Table verification_cases {
   evidence_score int
   risk_score int
   source_agreement source_agreement
-  decision_reason text
+  recommended_action recommended_action
+  recommendation_reason text
   error_code varchar(100)
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
@@ -158,9 +163,10 @@ Table verification_cases {
     (user_id, created_at) [name: "verification_cases_user_created_idx"]
     status [name: "verification_cases_status_idx"]
     uploaded_file_id [name: "verification_cases_file_idx"]
+    recommended_action [name: "verification_cases_recommended_action_idx"]
   }
 
-  Note: "Main verification record. Final status must be PASS, NO_PASS, HUMAN_REVIEW, or FAILED. Never TRUE/FALSE."
+  Note: "Main verification record. Processing status is technical. Editorial recommendation is stored separately in recommended_action. The system must never store TRUE/FALSE as final output."
 }
 
 /* =========================

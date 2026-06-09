@@ -1,0 +1,27 @@
+{
+  "name": "caso2-ia-detector",
+  "version": "1.0.0",
+  "description": "IA Detector is an editorial verification assistant for journalists and editorial teams.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SantiagoCaldeZ/caso2-ia-detector.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/SantiagoCaldeZ/caso2-ia-detector/issues"
+  },
+  "homepage": "https://github.com/SantiagoCaldeZ/caso2-ia-detector#readme",
+  "devDependencies": {
+    "prisma": "^7.8.0"
+  }
+}

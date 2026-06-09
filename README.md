@@ -4,7 +4,7 @@ IA Detector is an editorial verification assistant for journalists and editorial
 
 The system helps reduce the time required to review suspicious digital content before publication. It does not decide whether information is absolutely true or false. Instead, it generates an evidence-based analysis report with extracted claims, evidence, source agreement, risk signals, scores, and a recommended editorial action.
 
-This `README.md` is the main design document for the project. It contains the product scope, UX evidence, architecture, frontend design, backend design, data design, integrations, security, deployment, quality controls, and implementation structure.
+This `README.md` is the main design document for the project. It contains the product scope, UX prototype references, architecture, frontend design, backend design, data design, integrations, security, deployment, quality controls, and implementation structure.
 
 ---
 
@@ -160,19 +160,23 @@ These links are listed once in this document to avoid duplicated references acro
 
 ### 7.2 Prototype Screens
 
-Prototype evidence is stored under:
+The current interactive prototype is maintained in Figma. Screenshots are not committed until the prototype is approved as final, to avoid storing outdated visual evidence in the repository.
+
+When approved, the final screenshots will be stored under:
 
 ```text
 docs/assets/prototype/
 ```
 
-| Screen                 | File                                     | Purpose                                   |
-| ---------------------- | ---------------------------------------- | ----------------------------------------- |
-| Login                  | `docs/assets/prototype/login.png`        | User enters the tool.                     |
-| Register               | `docs/assets/prototype/register.png`     | User creates account.                     |
-| Verification dashboard | `docs/assets/prototype/dashboard.png`    | User submits content for analysis.        |
-| Analysis result modal  | `docs/assets/prototype/result-modal.png` | User reviews the analysis summary.        |
-| Verification history   | `docs/assets/prototype/history.png`      | User reviews previous verification cases. |
+Expected exported screens:
+
+| Screen | File | Purpose |
+|---|---|---|
+| Login | `login.png` | User enters the tool. |
+| Register | `register.png` | User creates account. |
+| Verification dashboard | `dashboard.png` | User submits content for analysis. |
+| Analysis result modal | `result-modal.png` | User reviews the analysis summary. |
+| Verification history | `history.png` | User reviews previous verification cases. |
 
 ### 7.3 Prototype Corrections Applied
 
@@ -186,25 +190,31 @@ docs/assets/prototype/
 
 ### 7.4 UX Testing Evidence
 
-UX testing evidence is stored under:
+The Maze test is the usability testing artifact for this prototype.
+
+No UX metrics are documented manually. Maze results are added to the repository only after real participants complete the test.
+
+When available, exported evidence will be stored under:
 
 ```text
 docs/assets/ux-testing/
 ```
 
-| Evidence                 | File                                              | Purpose                                       |
-| ------------------------ | ------------------------------------------------- | --------------------------------------------- |
-| Maze results summary     | `docs/assets/ux-testing/maze-results-summary.png` | Shows general results from the Maze test.     |
-| Task completion evidence | `docs/assets/ux-testing/maze-task-completion.png` | Shows which tasks users completed or failed.  |
-| Participant comments     | `docs/assets/ux-testing/maze-comments.png`        | Shows qualitative feedback from participants. |
+Expected exported evidence:
 
-UX validation must be based on real participant results. If Maze results are not available yet, this section should only include the prototype and test links, not invented metrics.
+| Evidence | Purpose |
+|---|---|
+| Maze results summary | Shows general results from the Maze test. |
+| Task completion evidence | Shows which tasks users completed or failed. |
+| Participant comments | Shows qualitative feedback from participants. |
+
+No UX metrics are documented in this repository until they come from Maze.
 
 ---
 
 ## 8. C4 Architecture
 
-The system architecture is documented using C4-style diagrams.
+The system architecture is documented using the C4 model: System Context, Container, and Component views.
 
 ### 8.1 C4 Level 1 — System Context
 
@@ -727,6 +737,19 @@ verification_cases * ── 0..1 uploaded_files
 | `fact_check_cache`   | `(cache_key)` unique    | Avoid repeated provider calls for same normalized claim. |
 | `fact_check_cache`   | `(expires_at)`          | Clean expired cache entries.                             |
 
+### 13.5 Database Enum Contract
+
+The database model separates processing status from editorial recommendation.
+
+| Concept | Values | Purpose |
+|---|---|---|
+| `VerificationStatus` | `CREATED`, `PROCESSING`, `COMPLETED`, `FAILED` | Tracks the technical processing state of a verification case. |
+| `RecommendedAction` | `READY_FOR_EDITORIAL_REVIEW`, `DO_NOT_PUBLISH_YET`, `NEEDS_MANUAL_REVIEW` | Stores the editorial recommendation produced by the analysis report. |
+
+`VerificationStatus` must not contain editorial recommendation values. The final recommendation belongs in `recommendedAction`, not in `status`.
+
+The Prisma schema and DBML model must follow this same separation.
+
 ---
 
 ## 14. External Integrations
@@ -772,43 +795,51 @@ Rules:
 
 ## 15. Design Patterns
 
+This section documents only the patterns that are directly used by the system. Each pattern includes the implementation rule that developers must follow.
+
 ### 15.1 Ambassador Pattern
 
-| Item          | Detail                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------- |
-| Problem       | The backend should not depend directly on a specific AI/OCR provider.                   |
-| Solution      | Use `AIAmbassador` as the single boundary for claim extraction, OCR, and risk analysis. |
-| Location      | `src/backend/application/ai/AIAmbassador.ts`                                            |
-| Collaborators | `MockAIConnector`, `MockOCRConnector`, `AIResponseAdapter`, `RetryManager`              |
-| Benefit       | The provider can be changed without rewriting verification services.                    |
+| Item | Detail |
+|---|---|
+| Problem | The backend should not depend directly on a specific AI/OCR provider. |
+| Solution | Use `AIAmbassador` as the single boundary for claim extraction, OCR, and risk analysis. |
+| Location | `src/backend/application/ai/AIAmbassador.ts` |
+| Collaborators | `MockAIConnector`, `MockOCRConnector`, `AIResponseAdapter`, `RetryManager` |
+| Implementation Rule | No service outside `application/ai/` can call an AI/OCR provider directly. |
+| Benefit | The provider can be changed without rewriting verification services. |
 
 ### 15.2 Adapter Pattern
 
-| Item     | Detail                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------ |
-| Problem  | Google Fact Check API responses do not match the internal evidence model.                  |
+| Item | Detail |
+|---|---|
+| Problem | Google Fact Check API responses do not match the internal evidence model. |
 | Solution | Use `GoogleFactCheckAdapter` to convert provider responses into internal evidence objects. |
-| Location | `src/backend/infrastructure/integrations/factcheck/GoogleFactCheckAdapter.ts`              |
-| Benefit  | Application services work with stable internal evidence models.                            |
+| Location | `src/backend/infrastructure/integrations/factcheck/GoogleFactCheckAdapter.ts` |
+| Collaborators | `GoogleFactCheckClient`, `MockFactCheckClient`, `FactCheckEvidenceService` |
+| Implementation Rule | Controllers and application services must not consume raw Google Fact Check API responses. |
+| Benefit | Application services work with stable internal evidence models. |
 
 ### 15.3 Strategy Pattern
 
-| Item       | Detail                                                                        |
-| ---------- | ----------------------------------------------------------------------------- |
-| Problem    | Text, URL, and image inputs need different preprocessing.                     |
-| Solution   | Use separate input handlers for each input type.                              |
-| Location   | `src/backend/application/verification/input-handlers/`                        |
-| Strategies | `TextInputHandler`, `UrlInputHandler`, `ImageInputHandler`                    |
-| Benefit    | New input types can be added without changing the main verification workflow. |
+| Item | Detail |
+|---|---|
+| Problem | Text, URL, and image inputs need different preprocessing before entering the common verification workflow. |
+| Solution | Use one input handler per input type. |
+| Location | `src/backend/application/verification/input-handlers/` |
+| Strategies | `TextInputHandler`, `UrlInputHandler`, `ImageInputHandler` |
+| Implementation Rule | `CreateVerificationCaseService` must delegate input-specific preprocessing to input handlers instead of containing input-type branching logic. |
+| Benefit | New input types can be added without changing the main verification workflow. |
 
 ### 15.4 Repository Pattern
 
-| Item     | Detail                                                                                   |
-| -------- | ---------------------------------------------------------------------------------------- |
-| Problem  | Application services should not contain Prisma-specific code.                            |
+| Item | Detail |
+|---|---|
+| Problem | Application services should not contain Prisma-specific persistence code. |
 | Solution | Use repositories for users, cases, evidence, risk signals, files, cache, and audit logs. |
-| Location | `src/backend/infrastructure/persistence/repositories/`                                   |
-| Benefit  | Persistence remains isolated from application workflow logic.                            |
+| Location | `src/backend/infrastructure/persistence/repositories/` |
+| Repositories | `UserRepository`, `VerificationRepository`, `EvidenceRepository`, `RiskSignalRepository`, `UploadedFileRepository`, `AuditLogRepository`, `FactCheckCacheRepository` |
+| Implementation Rule | Prisma calls must stay inside repository classes. |
+| Benefit | Persistence remains isolated from application workflow logic. |
 
 ---
 
@@ -926,7 +957,7 @@ Deploy staging / production
 | Frontend behavior | Component tests pass for forms, result display, and history table.  |
 | E2E flow          | User can log in, submit content, view report, and open history.     |
 | Security          | Protected routes reject unauthenticated access.                     |
-| UX                | Maze test results are reviewed and corrections are documented.      |
+| UX | Maze results are reviewed after participant testing, and prototype corrections are documented only when supported by real test evidence. |
 | Architecture      | C4 diagrams match the implemented containers and components.        |
 
 ### 18.2 Required Backend Tests
@@ -961,20 +992,15 @@ Deploy staging / production
 ```text
 caso2-ia-detector/
 ├── README.md
+├── prisma.config.ts
 │
 ├── docs/
 │   └── assets/
 │       ├── prototype/
-│       │   ├── login.png
-│       │   ├── register.png
-│       │   ├── dashboard.png
-│       │   ├── result-modal.png
-│       │   └── history.png
+│       │   └── .gitkeep
 │       │
 │       └── ux-testing/
-│           ├── maze-results-summary.png
-│           ├── maze-task-completion.png
-│           └── maze-comments.png
+│           └── .gitkeep
 │
 ├── database/
 │   └── dbml/
@@ -985,6 +1011,8 @@ caso2-ia-detector/
 ```
 
 This repository structure keeps the software design in one main document and stores only technical artifacts or UX evidence as supporting files.
+
+Prototype screenshots and Maze result exports are added only when the prototype and participant results are final.
 
 ---
 
@@ -1008,7 +1036,7 @@ src/
     └── shared/
 ```
 
-This structure is the target source code organization for implementation. The design sections above describe what each folder and component is responsible for before coding begins.
+This structure is the target source code organization for implementation. The design sections above define the responsibilities, contracts, and boundaries that the implementation must follow.
 
 ---
 

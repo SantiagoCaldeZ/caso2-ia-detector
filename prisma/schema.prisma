@@ -4,12 +4,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-/* =========================
-   ENUMS
-========================= */
+/**
+ * =========================
+ * ENUMS
+ * =========================
+ */
 
 enum UserRole {
   JOURNALIST
@@ -30,10 +31,14 @@ enum VerificationInputType {
 enum VerificationStatus {
   CREATED
   PROCESSING
-  PASS
-  NO_PASS
-  HUMAN_REVIEW
+  COMPLETED
   FAILED
+}
+
+enum RecommendedAction {
+  READY_FOR_EDITORIAL_REVIEW
+  DO_NOT_PUBLISH_YET
+  NEEDS_MANUAL_REVIEW
 }
 
 enum SourceAgreement {
@@ -71,20 +76,22 @@ enum AuditEventType {
   AUDIT_LOG_VIEWED
 }
 
-/* =========================
-   MODELS
-========================= */
+/**
+ * =========================
+ * MODELS
+ * =========================
+ */
 
 model User {
-  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String      @unique @db.VarChar(255)
-  name         String      @db.VarChar(150)
-  passwordHash String      @map("password_hash")
-  role         UserRole    @default(JOURNALIST)
-  status       UserStatus  @default(ACTIVE)
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  deletedAt    DateTime?   @map("deleted_at")
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String     @unique @db.VarChar(255)
+  name         String     @db.VarChar(150)
+  passwordHash String     @map("password_hash")
+  role         UserRole   @default(JOURNALIST)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  deletedAt    DateTime?  @map("deleted_at")
 
   refreshTokens     RefreshToken[]
   uploadedFiles     UploadedFile[]
@@ -130,21 +137,22 @@ model UploadedFile {
 }
 
 model VerificationCase {
-  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String                 @map("user_id") @db.Uuid
-  inputType       VerificationInputType  @map("input_type")
-  rawInput        String?                @map("raw_input")
-  uploadedFileId  String?                @map("uploaded_file_id") @db.Uuid
-  extractedClaim  String?                @map("extracted_claim")
-  status          VerificationStatus     @default(CREATED)
-  evidenceScore   Int?                   @map("evidence_score")
-  riskScore       Int?                   @map("risk_score")
-  sourceAgreement SourceAgreement?       @map("source_agreement")
-  decisionReason  String?                @map("decision_reason")
-  errorCode       String?                @map("error_code") @db.VarChar(100)
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
-  completedAt     DateTime?              @map("completed_at")
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String                @map("user_id") @db.Uuid
+  inputType            VerificationInputType @map("input_type")
+  rawInput             String?               @map("raw_input")
+  uploadedFileId       String?               @map("uploaded_file_id") @db.Uuid
+  extractedClaim       String?               @map("extracted_claim")
+  status               VerificationStatus    @default(CREATED)
+  evidenceScore        Int?                  @map("evidence_score")
+  riskScore            Int?                  @map("risk_score")
+  sourceAgreement      SourceAgreement?      @map("source_agreement")
+  recommendedAction    RecommendedAction?    @map("recommended_action")
+  recommendationReason String?               @map("recommendation_reason")
+  errorCode            String?               @map("error_code") @db.VarChar(100)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  completedAt          DateTime?             @map("completed_at")
 
   user         User          @relation(fields: [userId], references: [id])
   uploadedFile UploadedFile? @relation(fields: [uploadedFileId], references: [id])
@@ -153,6 +161,7 @@ model VerificationCase {
   riskSignals     RiskSignal[]
   auditLogs       AuditLog[]
 
+  @@index([recommendedAction], map: "verification_cases_recommended_action_idx")
   @@index([userId, createdAt], map: "verification_cases_user_created_idx")
   @@index([status], map: "verification_cases_status_idx")
   @@index([uploadedFileId], map: "verification_cases_file_idx")
@@ -160,24 +169,24 @@ model VerificationCase {
 }
 
 model EvidenceResult {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  verificationCaseId String   @map("verification_case_id") @db.Uuid
-  sourceName         String   @map("source_name") @db.VarChar(255)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  verificationCaseId String    @map("verification_case_id") @db.Uuid
+  sourceName         String    @map("source_name") @db.VarChar(255)
   title              String
   url                String
-  rating             String?  @db.VarChar(255)
-  claimReviewed      String?  @map("claim_reviewed")
-  relevanceScore     Int      @map("relevance_score")
+  rating             String?   @db.VarChar(255)
+  claimReviewed      String?   @map("claim_reviewed")
+  relevanceScore     Int       @map("relevance_score")
   publishedAt        DateTime? @map("published_at")
-  provider           String   @db.VarChar(100)
-  createdAt          DateTime @default(now()) @map("created_at")
+  provider           String    @db.VarChar(100)
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   verificationCase VerificationCase @relation(fields: [verificationCaseId], references: [id], onDelete: Cascade)
 
+  @@unique([verificationCaseId, url], map: "evidence_case_url_unique")
   @@index([verificationCaseId], map: "evidence_case_idx")
   @@index([url], map: "evidence_url_idx")
   @@index([provider], map: "evidence_provider_idx")
-  @@unique([verificationCaseId, url], map: "evidence_case_url_unique")
   @@map("evidence_results")
 }
 
@@ -228,6 +237,4 @@ model FactCheckCache {
   @@index([expiresAt], map: "fact_check_cache_expires_idx")
   @@index([provider], map: "fact_check_cache_provider_idx")
   @@map("fact_check_cache")
-}generator client {
-  provider = "prisma-client-js"
 }
