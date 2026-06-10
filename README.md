@@ -596,6 +596,12 @@ type RecommendedAction =
   | "DO_NOT_PUBLISH_YET"
   | "NEEDS_MANUAL_REVIEW";
 
+interface AuditTrailEventDTO {
+  eventType: string;
+  traceId: string;
+  createdAt: string;
+}
+
 interface VerificationAnalysisReportDTO {
   caseId: string;
   inputType: "TEXT" | "URL" | "IMAGE";
@@ -607,6 +613,7 @@ interface VerificationAnalysisReportDTO {
   recommendedAction: RecommendedAction;
   evidence: EvidenceDTO[];
   riskSignals: RiskSignalDTO[];
+  auditTrail: AuditTrailEventDTO[];
   createdAt: string;
   completedAt: string;
 }
@@ -615,6 +622,8 @@ interface VerificationAnalysisReportDTO {
 ### 11.3 EvidenceDTO
 
 ```ts
+type EvidenceAgreement = "SUPPORTS" | "CONTRADICTS" | "PARTIAL" | "UNKNOWN";
+
 interface EvidenceDTO {
   id: string;
   title: string;
@@ -624,7 +633,7 @@ interface EvidenceDTO {
   publishedAt?: string;
   summary: string;
   relevanceScore: number;
-  agreement: "SUPPORTS" | "CONTRADICTS" | "PARTIAL" | "UNKNOWN";
+  agreement: EvidenceAgreement;
 }
 ```
 
@@ -991,7 +1000,10 @@ Deploy staging / production
 
 ```text
 caso2-ia-detector/
+├── .gitignore
 ├── README.md
+├── package.json
+├── package-lock.json
 ├── prisma.config.ts
 │
 ├── docs/

@@ -47,6 +47,13 @@ enum SourceAgreement {
   LOW
 }
 
+enum EvidenceAgreement {
+  SUPPORTS
+  CONTRADICTS
+  PARTIAL
+  UNKNOWN
+}
+
 enum RiskSeverity {
   LOW
   MEDIUM
@@ -69,7 +76,7 @@ enum AuditEventType {
   CLAIM_EXTRACTED
   EVIDENCE_SEARCH_COMPLETED
   RISK_ANALYSIS_COMPLETED
-  AI_DECISION_COMPLETED
+  ANALYSIS_REPORT_GENERATED
   VERIFICATION_FAILED
   IMAGE_UPLOADED
   HISTORY_OPENED
@@ -169,17 +176,18 @@ model VerificationCase {
 }
 
 model EvidenceResult {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  verificationCaseId String    @map("verification_case_id") @db.Uuid
-  sourceName         String    @map("source_name") @db.VarChar(255)
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  verificationCaseId String            @map("verification_case_id") @db.Uuid
+  sourceName         String            @map("source_name") @db.VarChar(255)
   title              String
   url                String
-  rating             String?   @db.VarChar(255)
-  claimReviewed      String?   @map("claim_reviewed")
-  relevanceScore     Int       @map("relevance_score")
-  publishedAt        DateTime? @map("published_at")
-  provider           String    @db.VarChar(100)
-  createdAt          DateTime  @default(now()) @map("created_at")
+  rating             String?           @db.VarChar(255)
+  claimReviewed      String?           @map("claim_reviewed")
+  relevanceScore     Int               @map("relevance_score")
+  agreement          EvidenceAgreement @default(UNKNOWN)
+  publishedAt        DateTime?         @map("published_at")
+  provider           String            @db.VarChar(100)
+  createdAt          DateTime          @default(now()) @map("created_at")
 
   verificationCase VerificationCase @relation(fields: [verificationCaseId], references: [id], onDelete: Cascade)
 

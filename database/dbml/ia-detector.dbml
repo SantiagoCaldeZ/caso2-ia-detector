@@ -42,6 +42,13 @@ Enum source_agreement {
   LOW
 }
 
+Enum evidence_agreement {
+  SUPPORTS
+  CONTRADICTS
+  PARTIAL
+  UNKNOWN
+}
+
 Enum risk_severity {
   LOW
   MEDIUM
@@ -64,7 +71,7 @@ Enum audit_event_type {
   CLAIM_EXTRACTED
   EVIDENCE_SEARCH_COMPLETED
   RISK_ANALYSIS_COMPLETED
-  AI_DECISION_COMPLETED
+  ANALYSIS_REPORT_GENERATED
   VERIFICATION_FAILED
   IMAGE_UPLOADED
   HISTORY_OPENED
@@ -134,7 +141,7 @@ Table uploaded_files {
     sha256_hash [name: "uploaded_files_hash_idx"]
   }
 
-  Note: "Stores metadata for images or screenshots. File content is stored locally under /storage/uploads for MVP."
+  Note: "Stores metadata for images or screenshots. File content is stored in Supabase Storage; local demo mode may use mock or local storage paths."
 }
 
 /* =========================
@@ -182,6 +189,7 @@ Table evidence_results {
   rating varchar(255)
   claim_reviewed text
   relevance_score int [not null]
+  agreement evidence_agreement [not null, default: 'UNKNOWN']
   published_at timestamp
   provider varchar(100) [not null]
   created_at timestamp [not null, default: `now()`]
@@ -192,7 +200,7 @@ Table evidence_results {
     provider [name: "evidence_provider_idx"]
   }
 
-  Note: "Stores evidence found for one verification case. Evidence contributes to scoring but does not decide final classification alone."
+  Note: "Stores evidence found for one verification case. Evidence contributes to scoring and source agreement, but does not produce a truth/falsity verdict by itself."
 }
 
 /* =========================
