@@ -78,7 +78,7 @@ The system supports editorial judgment. It does not replace journalists, editors
 | Image / screenshot verification | User uploads an image first, then submits `uploadedFileId`. Backend processes it with `ImageInputHandler`. |
 | Claim extraction | Backend extracts one main claim using `ClaimExtractionService`. |
 | Evidence search | Backend searches cache first, then mock or live fact-check provider through `FactCheckEvidenceService`. |
-| Evidence normalization | Backend converts provider/mock results into internal `EvidenceDTO` objects. |
+| Evidence normalization | Backend converts provider/mock results into internal `EvidenceCandidate` objects before persistence and `EvidenceDTO` objects for API response. |
 | Risk analysis | Backend creates risk signals through `RiskAnalysisService`. |
 | Scoring | Backend calculates `evidenceScore`, `riskScore`, and `sourceAgreement` through deterministic scoring services. |
 | Editorial recommendation | Backend calculates `recommendedAction` and `recommendationReason`. |
@@ -157,6 +157,8 @@ This matrix connects each MVP use case to the frontend page, endpoint, backend s
 | UC-11 View audit trail | Result/detail audit panel | `GET /api/audit/:caseId` | `GetAuditTrailService` | `verification_cases`, `audit_logs` | AC-14 |
 | UC-12 Check backend health | Deployment/monitoring | `GET /api/health` | `HealthService` | None | AC-15 |
 
+Cross-cutting acceptance criteria such as unauthorized access, provider failure, no evidence, rate limiting, score calculation, observability, and security validation apply across multiple use cases. They are validated in the QA section even when they are not mapped to a single user-facing use case.
+
 Implementation rule:
 
 ```text
@@ -215,7 +217,7 @@ A use case is not considered fully specified unless it appears in this matrix an
 | Preconditions | User is authenticated. |
 | Trigger | User selects image file. |
 | Main Flow | 1. Frontend validates MIME type and size. 2. Frontend calls `POST /api/uploads/image`. 3. Backend validates MIME type and size. 4. Backend stores file through storage service. 5. Backend creates `uploaded_files` record. 6. Backend writes audit event `FILE_UPLOADED`. 7. Backend returns `UploadedFileDTO`. |
-| Error Flows | Unsupported file type returns `400`. File larger than 5 MB returns `400`. Storage failure returns `500` with `traceId`. |
+| Error Flows | Unsupported file type returns `400` with error code `UNSUPPORTED_FILE_TYPE`. File larger than 5 MB returns `413` with error code `FILE_TOO_LARGE`. Storage failure returns `500` with error code `INTERNAL_ERROR` and `traceId`. |
 | Output | `uploadedFileId` is available for image verification. |
 
 ### 2.8 UC-06 — Submit Text Verification
@@ -237,7 +239,7 @@ A use case is not considered fully specified unless it appears in this matrix an
 | Preconditions | User is authenticated. URL is syntactically valid. |
 | Trigger | User submits URL from verification dashboard. |
 | Main Flow | 1. Frontend calls `POST /api/verifications` with `inputType=URL`. 2. Backend validates URL. 3. Backend creates verification case with `status=PROCESSING`. 4. `UrlInputHandler` extracts or simulates page text for MVP. 5. Common verification pipeline runs. 6. Backend persists report. 7. Backend marks case `COMPLETED`. 8. Backend returns `VerificationAnalysisReportDTO`. |
-| Error Flows | Invalid URL returns `400`. URL extraction failure adds risk signal `SOURCE_CONTENT_UNAVAILABLE` and continues if enough content exists; otherwise stores case as `FAILED` and returns `422`. |
+| Error Flows | Invalid URL returns `400`. URL extraction failure sets source content status as unavailable. `RiskAnalysisService` later creates `SOURCE_CONTENT_UNAVAILABLE` when usable content still exists; otherwise the case is stored as `FAILED` and the endpoint returns `422`. |
 | Output | Complete or partial analysis report. |
 
 ### 2.10 UC-08 — Submit Image Verification
@@ -248,7 +250,7 @@ A use case is not considered fully specified unless it appears in this matrix an
 | Preconditions | User is authenticated. Image was previously uploaded. `uploadedFileId` belongs to current user. |
 | Trigger | User submits image verification. |
 | Main Flow | 1. Frontend uploads image using `POST /api/uploads/image`. 2. Frontend calls `POST /api/verifications` with `inputType=IMAGE` and `uploadedFileId`. 3. Backend validates file existence and ownership. 4. Backend creates verification case with `status=PROCESSING`. 5. `ImageInputHandler` obtains OCR text through mock/local behavior. 6. Common verification pipeline runs. 7. Backend persists report. 8. Backend marks case `COMPLETED`. 9. Backend returns `VerificationAnalysisReportDTO`. |
-| Error Flows | File not found returns `404`. File belongs to another user returns `403`. OCR uncertainty adds risk signal `OCR_UNCERTAINTY` and continues. OCR with no usable text stores case as `FAILED` and returns `422`. |
+| Error Flows | File not found returns `404`. File belongs to another user returns `403`. OCR uncertainty sets OCR status as uncertain. `RiskAnalysisService` later creates `OCR_UNCERTAINTY` when usable OCR text exists. OCR with no usable text stores case as `FAILED` and returns `422`. |
 | Output | Complete or partial analysis report. |
 
 ### 2.11 UC-09 — View Verification History
@@ -345,12 +347,12 @@ Response DTO
 | 4. Extract claim | `ClaimExtractionService` | `PreprocessedInput.contentForClaimExtraction` | `ExtractedClaimResult` | None | `audit_logs` | If claim cannot be extracted, case becomes `FAILED` and endpoint returns `422`. |
 | 5. Normalize claim | `ClaimNormalizationService` | Extracted claim | `normalizedClaim` | None | None | Empty normalized claim marks case `FAILED` and returns `422`. |
 | 6. Search cache | `FactCheckEvidenceService` | `normalizedClaim` | Cached evidence or cache miss | `fact_check_cache` | None | Cache failure is ignored and provider/mock search continues. |
-| 7. Search evidence | `FactCheckEvidenceService` | `normalizedClaim` | `EvidenceSearchResult` with evidence and `ProviderStatus` | External provider or mock | `fact_check_cache` optional, `audit_logs` | Provider failure returns `providerStatus=UNAVAILABLE`, writes `EVIDENCE_SEARCH_FAILED`, and continues with empty evidence. |
-| 8. Normalize evidence | `GoogleFactCheckAdapter` or mock adapter | Raw provider/mock response | `EvidenceCandidate[]` | None | None | Invalid provider item is skipped and logged. |
-| 9. Store evidence | `EvidenceRepository` | `EvidenceCandidate[]` | Stored evidence rows | None | `evidence_results` | Persistence failure marks case `FAILED` and returns `500`. |
-| 10. Analyze risk | `RiskAnalysisService` | Claim, evidence, input metadata, provider status | `RiskSignalDTO[]` | None | `risk_signals`, `audit_logs` | Failure marks case `FAILED` unless deterministic fallback is enabled. |
+| 7. Search raw evidence | `FactCheckEvidenceService` | `normalizedClaim` | `RawEvidenceSearchResult` with raw provider/mock/cache response, `ProviderStatus`, and `CacheStatus` | External provider, mock, or cache | `fact_check_cache` optional, `audit_logs` | Provider failure returns `providerStatus=UNAVAILABLE`, writes `EVIDENCE_SEARCH_FAILED`, and continues with empty raw evidence unless stale cache is available. |
+| 8. Normalize evidence | `GoogleFactCheckAdapter` or mock adapter | `RawEvidenceSearchResult` | `EvidenceSearchResult` with `EvidenceCandidate[]`, `ProviderStatus`, and `CacheStatus` | None | None | Invalid provider item is skipped and logged. |
+| 9. Store evidence | `EvidenceRepository` | `EvidenceCandidate[]` from `EvidenceSearchResult.evidence` | Stored `EvidenceDTO[]` | None | `evidence_results` | Persistence failure marks case `FAILED` and returns `500`. |
+| 10. Analyze risk | `RiskAnalysisService` | Claim, evidence, input metadata, provider status, cache status | `RiskSignalDTO[]` | None | `risk_signals`, `audit_logs` | Failure marks case `FAILED` unless deterministic fallback is enabled. |
 | 11. Calculate scores | `ScoringService` | Evidence and risk signals | `evidenceScore`, `riskScore`, `sourceAgreement` | None | None | Scores are clamped to 0–100. |
-| 12. Recommend action | `EditorialRecommendationService` | Scores, source agreement, evidence count, provider status | `recommendedAction`, `recommendationReason` | None | None | Missing score data returns `NEEDS_MANUAL_REVIEW` with reason. |
+| 12. Recommend action | `EditorialRecommendationService` | Scores, source agreement, evidence count, provider status, cache status | `recommendedAction`, `recommendationReason` | None | None | Missing score data returns `NEEDS_MANUAL_REVIEW` with reason. |
 | 13. Persist report | `VerificationRepository` | Final report fields | Updated case with `status=COMPLETED` | None | `verification_cases`, `audit_logs` | Failure marks case `FAILED` when possible and returns `500`. |
 | 14. Return response | `VerificationController` | Stored case with relations | `VerificationAnalysisReportDTO` | `verification_cases`, `evidence_results`, `risk_signals`, `audit_logs` | None | Serialization error returns `500` with `traceId`. |
 
@@ -362,7 +364,7 @@ The backend must persist a traceable result for each verification request.
 |---|---|
 | Validation fails before case creation | No case is created. Return `400`. |
 | Failure after case creation | Case is updated to `FAILED`, audit event `VERIFICATION_FAILED` is written, and typed error is returned. |
-| Provider failure but claim exists | Case remains processable. `FactCheckEvidenceService` returns `providerStatus=UNAVAILABLE`; `RiskAnalysisService` adds risk signal `PROVIDER_UNAVAILABLE`; the report is calculated with empty or cached evidence and returned as a partial report. |
+| Provider failure but claim exists | Case remains processable. `FactCheckEvidenceService` returns `providerStatus=UNAVAILABLE` and either `cacheStatus=MISS` or `cacheStatus=STALE_HIT`. `RiskAnalysisService` adds risk signal `PROVIDER_UNAVAILABLE`. If `cacheStatus=MISS`, the report is calculated with empty evidence. If `cacheStatus=STALE_HIT`, stale cached evidence may be used as fallback and the report must still show provider degradation context. |
 | Persistence failure while saving final report | Return `500` with `traceId`. Case should be marked `FAILED` if update is still possible. |
 
 ### 3.5 Pipeline Data Types
@@ -417,13 +419,12 @@ interface ExtractedClaimResult {
 }
 ```
 
-#### `EvidenceDTO`
+#### `EvidenceCandidate`, `EvidenceDTO`, and `EvidenceSearchResult`
 
 ```ts
 type EvidenceAgreement = "SUPPORTS" | "CONTRADICTS" | "PARTIAL" | "UNKNOWN";
 
-interface EvidenceDTO {
-  id: string;
+interface EvidenceCandidate {
   title: string;
   sourceName: string;
   sourceUrl: string;
@@ -434,26 +435,51 @@ interface EvidenceDTO {
   agreement: EvidenceAgreement;
   provider: "mock" | "google_fact_check";
 }
-```
 
-#### `ProviderStatus`
+interface EvidenceDTO extends EvidenceCandidate {
+  id: string;
+}
 
-```ts
-type ProviderStatus = "SUCCESS" | "CACHE_HIT" | "UNAVAILABLE";
+type ProviderStatus = "SUCCESS" | "UNAVAILABLE" | "NOT_CALLED";
+type CacheStatus = "HIT" | "MISS" | "STALE_HIT";
+
+interface RawEvidenceSearchResult {
+  rawEvidence: unknown[];
+  providerStatus: ProviderStatus;
+  cacheStatus: CacheStatus;
+}
 
 interface EvidenceSearchResult {
-  evidence: EvidenceDTO[];
+  evidence: EvidenceCandidate[];
   providerStatus: ProviderStatus;
+  cacheStatus: CacheStatus;
 }
 ```
 
-Usage:
+Type usage:
 
-| Status | Meaning | Downstream Effect |
+| Type | Purpose |
+|---|---|
+| `EvidenceCandidate` | Internal normalized evidence object before persistence. It does not include `id`. |
+| `EvidenceDTO` | API response evidence object after persistence. It includes `id`. |
+| `RawEvidenceSearchResult` | Raw provider/mock/cache result before adapter normalization. |
+| `EvidenceSearchResult` | Normalized evidence search result passed to risk, scoring, recommendation, and persistence services. |
+
+Provider status:
+
+| Provider Status | Meaning | Downstream Effect |
 |---|---|---|
-| `SUCCESS` | Provider or mock search completed normally. | Recommendation rules treat empty evidence as successful search with no relevant evidence. |
-| `CACHE_HIT` | Cached normalized evidence was used. | Recommendation rules use cached evidence and may still show provider context if live provider failed. |
-| `UNAVAILABLE` | Evidence provider could not be reached and no cache was available. | `RiskAnalysisService` adds `PROVIDER_UNAVAILABLE`; recommendation rules treat the case as provider-degraded. |
+| `SUCCESS` | Live provider or mock search completed normally. | Empty evidence is treated as successful search with no relevant evidence. |
+| `UNAVAILABLE` | Live provider could not be reached or failed after retries. | `RiskAnalysisService` adds `PROVIDER_UNAVAILABLE`. Recommendation rules treat the case as provider-degraded. |
+| `NOT_CALLED` | Provider was not called because a fresh cache hit was used. | Cached evidence is used without provider degradation. |
+
+Cache status:
+
+| Cache Status | Meaning | Downstream Effect |
+|---|---|---|
+| `HIT` | Fresh cached normalized evidence was used. | Provider may be skipped and recommendation uses cached evidence. |
+| `MISS` | No usable cache entry existed. | Provider/mock search is required. If provider fails, evidence is empty. |
+| `STALE_HIT` | Expired cache was used only as fallback after provider failure. | Report may use cached evidence but must show provider degradation context. |
 
 #### `RiskSignalDTO`
 
@@ -544,11 +570,18 @@ Rules:
 | Empty evidence after successful evidence search | `evidenceScore = 0`. |
 | Provider unavailable with no cache | `evidenceScore = 0`, but recommendation follows provider-degraded rule. |
 | Final bounds | Clamp final score between 0 and 100. |
+| Precision | Score is rounded to the nearest integer before persistence and API response. |
 
 Formula:
 
 ```text
 evidenceScore = average contribution of up to 5 most relevant evidence items
+```
+
+Precision rule:
+
+```text
+Evidence score is calculated as a number, rounded to the nearest integer, and clamped between 0 and 100 before persistence and API response.
 ```
 
 ### 3.8 Risk Score Rules
@@ -567,10 +600,28 @@ evidenceScore = average contribution of up to 5 most relevant evidence items
 | `RECENT_BREAKING_CLAIM` | MEDIUM | +15 |
 | `SOURCE_CONTENT_UNAVAILABLE` | MEDIUM | +20 |
 
+Risk signal deduplication rule:
+
+```text
+RiskAnalysisService must emit at most one risk signal per type per verification case. If duplicate signals of the same type are detected, they must be merged before calculating riskScore.
+```
+
+Risk signal emission rule:
+
+```text
+NO_RELEVANT_EVIDENCE must be emitted only when providerStatus=SUCCESS or cacheStatus is HIT or STALE_HIT and no relevant evidence exists. It must not be emitted when providerStatus=UNAVAILABLE and cacheStatus=MISS, because in that case the system could not search evidence.
+```
+
 Final value:
 
 ```text
-riskScore = sum of risk signal contributions, capped at 100
+riskScore = sum of risk signal contributions, rounded to the nearest integer and capped at 100
+```
+
+Precision rule:
+
+```text
+Risk score is calculated as a number, rounded to the nearest integer, and capped at 100 before persistence and API response.
 ```
 
 ### 3.9 Source Agreement Rules
@@ -588,10 +639,22 @@ Recommendation rules are evaluated in priority order.
 | Priority | Recommended Action | Rule |
 |---:|---|---|
 | 1 | `DO_NOT_PUBLISH_YET` | Strong contradictory evidence exists, or `riskScore > 60`. |
-| 2 | `NEEDS_MANUAL_REVIEW` | Evidence provider is unavailable, no cached evidence exists, and claim extraction succeeded. |
-| 3 | `DO_NOT_PUBLISH_YET` | No relevant evidence exists after a successful evidence search. |
+| 2 | `NEEDS_MANUAL_REVIEW` | `providerStatus=UNAVAILABLE`, `cacheStatus=MISS`, and claim extraction succeeded. |
+| 3 | `DO_NOT_PUBLISH_YET` | `providerStatus=SUCCESS`, `cacheStatus=MISS`, and no relevant evidence exists after a successful evidence search. |
 | 4 | `READY_FOR_EDITORIAL_REVIEW` | `evidenceScore >= 75`, `riskScore <= 35`, `sourceAgreement=HIGH`, and at least 2 relevant supporting evidence items exist. |
 | 5 | `NEEDS_MANUAL_REVIEW` | Any intermediate, ambiguous, sensitive, partial, OCR-uncertain, or provider-degraded case not covered above. |
+
+Cache fallback rule:
+
+```text
+If providerStatus=UNAVAILABLE and cacheStatus=STALE_HIT, the report may use stale cached evidence but must include provider degradation context through risk signal PROVIDER_UNAVAILABLE. Recommendation then follows the normal priority rules using the available cached evidence.
+```
+
+No-evidence rule:
+
+```text
+NO_RELEVANT_EVIDENCE and the no-evidence recommendation path apply only when evidence search completed successfully or cached evidence was available. They do not apply when providerStatus=UNAVAILABLE and cacheStatus=MISS.
+```
 
 This order prevents a provider outage from being treated the same as a successful search that found no supporting evidence.
 
@@ -998,10 +1061,10 @@ After preprocessing, the backend analysis pipeline must use PreprocessedInput an
 | Path | `src/backend/application/evidence/FactCheckEvidenceService.ts` |
 | Responsibility | Finds evidence related to the normalized claim. |
 | Input | `normalizedClaim` |
-| Output | `EvidenceCandidate[]` |
+| Output | `EvidenceSearchResult` |
 | Collaborators | `FactCheckCacheRepository`, `GoogleFactCheckClient`, `MockFactCheckClient`, `GoogleFactCheckAdapter`, `EvidenceRepository` |
 | Must Not | Expose provider API key. Return raw provider JSON. Treat empty evidence as false. |
-| Failure Behavior | Provider failure returns empty evidence, adds provider status `UNAVAILABLE`, writes `EVIDENCE_SEARCH_FAILED`, and continues report generation. `RiskAnalysisService` is responsible for creating risk signal `PROVIDER_UNAVAILABLE`. |
+| Failure Behavior | Provider failure returns `providerStatus=UNAVAILABLE` and either `cacheStatus=MISS` or `cacheStatus=STALE_HIT`, writes `EVIDENCE_SEARCH_FAILED`, and continues report generation. `RiskAnalysisService` is responsible for creating risk signal `PROVIDER_UNAVAILABLE`. |
 
 ### 5.7 Module Contract — `RiskAnalysisService`
 
@@ -1009,7 +1072,7 @@ After preprocessing, the backend analysis pipeline must use PreprocessedInput an
 |---|---|
 | Path | `src/backend/application/risk/RiskAnalysisService.ts` |
 | Responsibility | Produces risk signals based on claim, evidence, input metadata, and provider status. |
-| Input | Claim, evidence candidates, input metadata, provider status |
+| Input | Claim, evidence candidates, input metadata, provider status, cache status |
 | Output | `RiskSignalDTO[]` |
 | Must Detect | `NO_RELEVANT_EVIDENCE`, `CONTRADICTORY_EVIDENCE`, `LOW_SOURCE_AGREEMENT`, `PROVIDER_UNAVAILABLE`, `OCR_UNCERTAINTY`, `UNKNOWN_SOURCE`, `EMOTIONAL_LANGUAGE`, `RECENT_BREAKING_CLAIM`, `SOURCE_CONTENT_UNAVAILABLE` |
 | Must Not | Produce recommendation directly. Decide truth/falsity. |
@@ -1109,6 +1172,45 @@ interface UserDTO {
   email: string;
   role: "JOURNALIST" | "ADMIN";
 }
+```
+
+#### `UploadedFileDTO`
+
+```ts
+interface UploadedFileDTO {
+  id: string;
+  originalFileName: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  sizeBytes: number;
+  storagePath: string;
+  createdAt: string;
+}
+```
+
+#### `VerificationHistoryItemDTO`
+
+```ts
+interface VerificationHistoryItemDTO {
+  caseId: string;
+  inputType: "TEXT" | "URL" | "IMAGE";
+  originalInputPreview: string;
+  extractedClaim?: string;
+  evidenceScore?: number;
+  riskScore?: number;
+  sourceAgreement?: "HIGH" | "MEDIUM" | "LOW";
+  recommendedAction?:
+    | "READY_FOR_EDITORIAL_REVIEW"
+    | "DO_NOT_PUBLISH_YET"
+    | "NEEDS_MANUAL_REVIEW";
+  status: "PROCESSING" | "COMPLETED" | "FAILED";
+  createdAt: string;
+}
+```
+
+History item rule:
+
+```text
+Score, agreement, extractedClaim, and recommendation fields may be absent when status=PROCESSING or when status=FAILED before report generation.
 ```
 
 ### 6.2.1 Error Code Catalog
@@ -1339,11 +1441,12 @@ Response `201`:
 
 Errors:
 
-| Status | Meaning |
-|---:|---|
-| `400` | Invalid file type or file too large. |
-| `401` | Unauthenticated. |
-| `500` | Storage failure. |
+| Status | Error Code | Meaning |
+|---:|---|---|
+| `400` | `UNSUPPORTED_FILE_TYPE` | Uploaded file MIME type is not allowed. |
+| `401` | `UNAUTHENTICATED` | User is not authenticated. |
+| `413` | `FILE_TOO_LARGE` | Uploaded file exceeds 5 MB. |
+| `500` | `INTERNAL_ERROR` | Storage failure or unexpected server error. |
 
 ### 6.6 Verification Endpoints
 
@@ -1530,6 +1633,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | `RecommendedAction` | `READY_FOR_EDITORIAL_REVIEW`, `DO_NOT_PUBLISH_YET`, `NEEDS_MANUAL_REVIEW` | Stores editorial recommendation. |
 | `EvidenceAgreement` | `SUPPORTS`, `CONTRADICTS`, `PARTIAL`, `UNKNOWN` | Describes how one evidence item relates to the extracted claim. |
 | `RiskSeverity` | `LOW`, `MEDIUM`, `HIGH` | Describes risk signal severity. |
+| `RiskSignalType` | `NO_RELEVANT_EVIDENCE`, `CONTRADICTORY_EVIDENCE`, `LOW_SOURCE_AGREEMENT`, `PROVIDER_UNAVAILABLE`, `OCR_UNCERTAINTY`, `UNKNOWN_SOURCE`, `EMOTIONAL_LANGUAGE`, `RECENT_BREAKING_CLAIM`, `SOURCE_CONTENT_UNAVAILABLE` | Describes the type of warning detected during verification. |
 | `AuditEventType` | `USER_REGISTERED`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`, `SESSION_REFRESHED`, `FILE_UPLOADED`, `VERIFICATION_CREATED`, `INPUT_PREPROCESSED`, `CLAIM_EXTRACTED`, `EVIDENCE_SEARCH_STARTED`, `EVIDENCE_SEARCH_COMPLETED`, `EVIDENCE_SEARCH_FAILED`, `RISK_ANALYSIS_COMPLETED`, `ANALYSIS_REPORT_GENERATED`, `VERIFICATION_FAILED` | Describes traceable workflow events. |
 
 ### 7.2 Table — `users`
@@ -1595,7 +1699,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Purpose | Stores warning signals detected during verification. |
 | Used By | `POST /api/verifications`, `GET /api/verifications/:caseId`. |
 | Main Columns | `id`, `case_id`, `type`, `severity`, `description`, `created_at` |
-| Constraints | `severity` must be `LOW`, `MEDIUM`, or `HIGH`. |
+| Constraints | `type` must match `RiskSignalType`. `severity` must be `LOW`, `MEDIUM`, or `HIGH`. A verification case should not store duplicate risk signal types. |
 | Relationships | Many risk signals belong to one verification case. |
 | Indexes | `case_id` for report loading. `severity` optional for filtering high-risk cases. |
 
@@ -1617,9 +1721,10 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Purpose | Caches normalized provider responses to avoid repeated external calls for the same claim. |
 | Used By | `FactCheckEvidenceService`. |
 | Main Columns | `id`, `cache_key`, `normalized_claim`, `provider`, `response_data`, `expires_at`, `created_at`, `updated_at` |
-| Constraints | `cache_key` unique. Expired cache must not be used. |
+| Constraints | `cache_key` unique. Expired cache must not be used for normal cache hits. Expired cache may be used only as `STALE_HIT` fallback when `providerStatus=UNAVAILABLE`. |
 | Relationships | No direct case relationship required. Cache is claim/provider based. |
 | Indexes | `cache_key` unique for lookup. `expires_at` for cleanup. `provider` for diagnostics. |
+| Cached Data Rule | `response_data` stores normalized evidence used by the application, not raw provider responses. |
 
 ---
 
@@ -1648,37 +1753,48 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Adapter | `GoogleFactCheckAdapter` |
 | Mock | `MockFactCheckClient` |
 | Canonical Input | `normalizedClaim: string` |
-| Canonical Output | `EvidenceSearchResult` containing `EvidenceCandidate[]` and `ProviderStatus` |
+| Canonical Output | `EvidenceSearchResult` containing `EvidenceCandidate[]`, `ProviderStatus`, and `CacheStatus` |
 | Timeout | 8 seconds by default. |
 | Retries | 2 retries by default. |
 | Cache Key | `sha256(provider + ":" + normalizedClaim)` |
 | Cache TTL | 60 minutes by default. |
-| Failure Behavior | Return provider status `UNAVAILABLE`, write audit event `EVIDENCE_SEARCH_FAILED`, and continue pipeline with empty evidence. `RiskAnalysisService` creates the `PROVIDER_UNAVAILABLE` risk signal. |
+| Failure Behavior | Provider failure returns `providerStatus=UNAVAILABLE`. If no usable fallback exists, `cacheStatus=MISS` and the pipeline continues with empty evidence. If stale cache fallback exists, `cacheStatus=STALE_HIT` and the pipeline continues with stale cached evidence plus provider degradation context. |
 | Security | API key is read only by backend from environment variables. |
-
 
 #### Evidence Search Result
 
-`FactCheckEvidenceService` must return both evidence and provider status:
+`FactCheckEvidenceService` must return evidence, provider status, and cache status:
 
 ```ts
+type ProviderStatus = "SUCCESS" | "UNAVAILABLE" | "NOT_CALLED";
+type CacheStatus = "HIT" | "MISS" | "STALE_HIT";
+
 interface EvidenceSearchResult {
   evidence: EvidenceCandidate[];
-  providerStatus: "SUCCESS" | "CACHE_HIT" | "UNAVAILABLE";
+  providerStatus: ProviderStatus;
+  cacheStatus: CacheStatus;
 }
 ```
 
 This result is passed to `RiskAnalysisService` and `EditorialRecommendationService` so the system can distinguish between:
 
-| Situation | Meaning |
-|---|---|
-| Successful search with no relevant evidence | Evidence was searched, but nothing relevant was found. |
-| Provider unavailable with no cache | Evidence could not be searched. The report must be marked as provider-degraded. |
-| Provider unavailable with cache | Cached evidence can be used, but provider degradation may still be shown in the report context. |
+| Situation | Provider Status | Cache Status | Meaning |
+|---|---|---|---|
+| Successful search with evidence | `SUCCESS` | `MISS` | Provider/mock search completed and returned evidence. |
+| Successful search with no relevant evidence | `SUCCESS` | `MISS` | Evidence was searched, but nothing relevant was found. |
+| Fresh cache hit | `NOT_CALLED` | `HIT` | Fresh cached evidence was used and provider was skipped. |
+| Provider unavailable with no cache | `UNAVAILABLE` | `MISS` | Evidence could not be searched and no cache fallback exists. |
+| Provider unavailable with stale cache | `UNAVAILABLE` | `STALE_HIT` | Provider failed, but expired cached evidence was used as fallback with degradation context. |
+
+Implementation rule:
+
+```text
+Cache status and provider status must be evaluated together. Cache hit is not a provider status.
+```
 
 ### 8.3 Fact Check Mock Fixtures
 
-Mock mode must be deterministic. Matching is case-insensitive.
+Mock mode must be deterministic. Fixture matching is case-insensitive and uses the normalized claim.
 
 | Input Contains | Mock Evidence Behavior |
 |---|---|
@@ -1925,6 +2041,7 @@ Backend logs must include:
 | `event` | Describes the workflow event. |
 | `durationMs` | Measures operation time. |
 | `providerStatus` | Tracks external provider availability. |
+| `cacheStatus` | Tracks whether evidence came from fresh cache, stale cache, or cache miss. |
 
 Logs must not include passwords, refresh tokens, API keys, raw provider secrets, or full uploaded file contents.
 
@@ -2019,6 +2136,8 @@ Containers:
 
 ```mermaid
 flowchart TB
+    monitoring["External: Deployment / Monitoring Check"]
+
     verificationController["Component: VerificationController"]
     uploadController["Component: UploadController"]
     authController["Component: AuthController"]
@@ -2042,6 +2161,9 @@ flowchart TB
     factCheck["External System: Google Fact Check Tools API"]
     aiProvider["External System: AI/OCR Provider or Mock"]
     storage["Container: Object Storage"]
+
+    monitoring --> healthController
+    healthController --> exceptionFilter
 
     verificationController --> createCaseService
     uploadController --> uploadService
@@ -2090,6 +2212,12 @@ Components:
 | `AIAmbassador` | Controls AI/OCR provider boundary. |
 | `Repositories` | Isolate persistence access. |
 | `GlobalExceptionFilter` | Converts exceptions into safe `ErrorResponseDTO` responses. |
+| `AuthController` | Receives authentication API requests for register, login, refresh, logout, and current user. |
+| `UploadController` | Receives image upload requests and delegates file validation and storage. |
+| `AuditController` | Receives audit trail requests and validates access through the audit service/repositories. |
+| `HealthController` | Receives deployment or monitoring health check requests. |
+| `Auth Services` | Handle registration, login, refresh token rotation, logout, and current user retrieval. |
+| `UploadImageService` | Validates uploaded image files, stores them through object storage, and persists uploaded file metadata. |
 
 ---
 
@@ -2262,7 +2390,7 @@ When implementation code exists, CI/CD must run the following stages:
 | AC-07 | Submit URL verification | Given valid URL, backend returns completed or partial analysis report. |
 | AC-08 | Submit image verification | Given owned `uploadedFileId`, backend returns completed or partial analysis report. |
 | AC-09 | Unauthorized file access | Given another user's `uploadedFileId`, backend returns `403`. |
-| AC-10 | No evidence found after successful search | Backend returns `DO_NOT_PUBLISH_YET` or `NEEDS_MANUAL_REVIEW` according to scoring rules. |
+| AC-10 | No evidence found after successful search | Backend returns `DO_NOT_PUBLISH_YET` when `providerStatus=SUCCESS`, `cacheStatus=MISS`, and no relevant evidence exists. |
 | AC-11 | Provider failure | Backend returns partial report when possible and includes `PROVIDER_UNAVAILABLE` risk signal. |
 | AC-12 | History | User sees only own verification cases. |
 | AC-13 | Case detail | User can open own case and see evidence, risk signals, scores, recommendation, and audit trail. |
@@ -2283,25 +2411,26 @@ When implementation code exists, CI/CD must run the following stages:
 
 ### 15.3 Backend Unit Tests
 
-| Test | Expected Result |
-|---|---|
-| High evidence, low risk, high agreement | `READY_FOR_EDITORIAL_REVIEW`. |
-| Low evidence after successful search | `DO_NOT_PUBLISH_YET`. |
-| Provider unavailable with no cache | `NEEDS_MANUAL_REVIEW`, unless stronger rule applies. |
-| High risk | `DO_NOT_PUBLISH_YET`. |
-| Medium evidence and medium agreement | `NEEDS_MANUAL_REVIEW`. |
-| No evidence | Recommendation follows section 3.10 priority rules. |
-| Provider unavailable | `RiskAnalysisService` adds `PROVIDER_UNAVAILABLE`. |
-| Provider unavailable with cache | Cached evidence is used and provider degradation is visible in report context. |
-| Provider unavailable without cache | Recommendation is `NEEDS_MANUAL_REVIEW`, unless strong contradiction or high risk forces `DO_NOT_PUBLISH_YET`. |
-| Successful search with no relevant evidence | Recommendation follows no-evidence rule from section 3.10. |
-| Strong contradiction | Recommendation is `DO_NOT_PUBLISH_YET`. |
-| OCR uncertainty | `RiskAnalysisService` adds `OCR_UNCERTAINTY`. |
-| Evidence score below 0 or above 100 | Score is clamped to 0–100. |
-| Cache hit | Provider is not called and cached evidence is used. |
-| Cache miss | Provider or mock client is called. |
-| Expired cache | Provider or mock client is called again. |
-| Repository isolation | Application services do not import Prisma directly. |
+| Test                                        | Expected Result                                                                                                               |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| High evidence, low risk, high agreement     | `READY_FOR_EDITORIAL_REVIEW`.                                                                                                 |
+| Low evidence after successful search        | `DO_NOT_PUBLISH_YET`.                                                                                                         |
+| Medium evidence and medium agreement        | `NEEDS_MANUAL_REVIEW`.                                                                                                        |
+| High risk                                   | `DO_NOT_PUBLISH_YET`.                                                                                                         |
+| Strong contradiction                        | `DO_NOT_PUBLISH_YET`.                                                                                                         |
+| Successful search with no relevant evidence | `NO_RELEVANT_EVIDENCE` is emitted and recommendation follows the no-evidence rule from section 3.10.                          |
+| Provider unavailable with no cache          | `PROVIDER_UNAVAILABLE` is emitted, `NO_RELEVANT_EVIDENCE` is not emitted, and recommendation follows provider-degraded rules. |
+| Provider unavailable with stale cache       | Stale cached evidence is used only as fallback and provider degradation context is visible.                                   |
+| Fresh cache hit                             | Provider is not called and cached evidence is used.                                                                           |
+| Cache miss                                  | Provider or mock client is called.                                                                                            |
+| Expired cache with provider available       | Provider or mock client is called again.                                                                                      |
+| OCR uncertainty                             | `RiskAnalysisService` adds `OCR_UNCERTAINTY`.                                                                                 |
+| Evidence score below 0 or above 100         | Score is clamped to 0–100.                                                                                                    |
+| Evidence score decimal result               | Score is rounded to the nearest integer and clamped to 0–100.                                                                 |
+| Risk score decimal result                   | Score is rounded to the nearest integer and capped at 100.                                                                    |
+| Duplicate risk signals                      | Duplicate signal types are merged before calculating `riskScore`.                                                             |
+| Evidence search result statuses             | Recommendation logic receives both `providerStatus` and `cacheStatus`.                                                        |
+| Repository isolation                        | Application services do not import Prisma directly.                                                                           |
 
 ### 15.4 API Integration Tests
 
@@ -2313,6 +2442,7 @@ When implementation code exists, CI/CD must run the following stages:
 | `POST /api/auth/refresh` | Returns new access token when refresh token is valid. |
 | `POST /api/auth/logout` | Revokes refresh token and prevents reuse. |
 | `POST /api/uploads/image` | Accepts JPEG/PNG/WEBP under 5 MB and rejects unsupported files. |
+| `POST /api/uploads/image` | File larger than 5 MB returns `413 FILE_TOO_LARGE`. |
 | `POST /api/verifications` | Creates complete report for text, URL, and image. |
 | `POST /api/verifications` | Stores failed case when claim extraction fails after case creation. |
 | `GET /api/verifications` | Returns only current user's cases. |
@@ -2347,6 +2477,13 @@ When implementation code exists, CI/CD must run the following stages:
 | Audit log metadata | Does not store passwords, tokens, API keys, or raw file contents. |
 | Provider failure | Logs provider failure with `traceId`. |
 | Health check | Returns status without exposing secrets. |
+| Rate limit exceeded | Returns `429 RATE_LIMIT_EXCEEDED`. |
+| CORS restricted origin | Requests from unknown origins are rejected. |
+| Duplicate risk signal attempt | Duplicate risk signal types are not counted twice. |
+| Provider unavailable with stale cache | Response includes provider degradation context and uses stale cache only as fallback. |
+| Provider unavailable with no cache | Response includes `PROVIDER_UNAVAILABLE` and does not include `NO_RELEVANT_EVIDENCE`. |
+| Fact-check stale cache fallback | Expired cache is used only when provider is unavailable and response includes provider degradation context. |
+| Structured logs include cache status | Logs include `cacheStatus` when evidence search is executed. |
 
 ### 15.7 Smoke Test
 
@@ -2526,3 +2663,5 @@ Before sending for review:
 | Patterns are applied. | Each pattern includes context, problem, forces, solution, participants, collaborations, rules, consequences, and location. |
 | QA is testable. | Acceptance criteria and tests are concrete. |
 | Product language avoids absolute truth labels. | UI and implementation artifacts do not use forbidden labels as product states. |
+| Cache fallback rules are consistent. | `STALE_HIT` is allowed only as provider-failure fallback, and normal expired cache is not treated as fresh evidence. |
+| README render is validated in GitHub. | Tables, Mermaid diagrams, internal anchors, and relative links render correctly. |
