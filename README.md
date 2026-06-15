@@ -1627,6 +1627,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Enum | Values | Purpose |
 |---|---|---|
 | `UserRole` | `JOURNALIST`, `ADMIN` | Controls authorization behavior. |
+| `UserStatus` | `ACTIVE`, `DISABLED` | Tracks whether a user can authenticate and use protected routes. |
 | `VerificationStatus` | `PROCESSING`, `COMPLETED`, `FAILED` | Tracks technical processing state. |
 | `InputType` | `TEXT`, `URL`, `IMAGE` | Describes submitted content type. |
 | `SourceAgreement` | `HIGH`, `MEDIUM`, `LOW` | Summarizes agreement among evidence sources. |
@@ -1642,10 +1643,10 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 |---|---|
 | Purpose | Stores journalist and admin accounts. |
 | Used By | Auth endpoints, authorization checks, verification ownership. |
-| Main Columns | `id`, `name`, `email`, `password_hash`, `role`, `created_at`, `updated_at`, `deleted_at` |
-| Constraints | `email` unique. `password_hash` required. |
-| Relationships | One user has many refresh tokens, uploaded files, and verification cases. |
-| Indexes | `email` unique for login. `role` optional for admin queries. |
+| Main Columns | `id`, `name`, `email`, `password_hash`, `role`, `status`, `created_at`, `updated_at`, `deleted_at` |
+| Constraints | `email` unique. `password_hash` required. `status` defaults to `ACTIVE`. Disabled users cannot log in. |
+| Relationships | One user has many refresh tokens, uploaded files, verification cases, and audit logs. |
+| Indexes | `email` unique for login. `role` optional for admin queries. `status` optional for authentication filtering. |
 
 ### 7.3 Table — `refresh_tokens`
 
@@ -1675,7 +1676,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 |---|---|
 | Purpose | Stores one verification request and final analysis summary. |
 | Used By | `POST /api/verifications`, `GET /api/verifications`, `GET /api/verifications/:caseId`. |
-| Main Columns | `id`, `user_id`, `input_type`, `raw_input`, `uploaded_file_id`, `original_input_preview`, `extracted_claim`, `status`, `evidence_score`, `risk_score`, `source_agreement`, `recommended_action`, `recommendation_reason`, `created_at`, `completed_at`, `failed_at` |
+| Main Columns | `id`, `user_id`, `input_type`, `raw_input`, `uploaded_file_id`, `original_input_preview`, `extracted_claim`, `status`, `evidence_score`, `risk_score`, `source_agreement`, `recommended_action`, `recommendation_reason`, `created_at`, `updated_at`, `completed_at`, `failed_at` |
 | Constraints | `uploaded_file_id` required only when `input_type=IMAGE`. Scores must be 0–100. `recommended_action` exists only after report generation. |
 | Relationships | One case belongs to one user. One case has many evidence results, risk signals, and audit logs. |
 | Lifecycle | Case is inserted as `PROCESSING`. It becomes `COMPLETED` when the report is generated or `FAILED` when an unrecoverable error occurs. |
@@ -1690,7 +1691,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Main Columns | `id`, `case_id`, `title`, `source_name`, `source_url`, `publisher`, `summary`, `relevance_score`, `agreement`, `published_at`, `provider`, `created_at` |
 | Constraints | `source_url` required. `relevance_score` must be 0–100. `agreement` defaults to `UNKNOWN`. |
 | Relationships | Many evidence rows belong to one verification case. |
-| Indexes | `case_id` for report loading. `provider` for provider diagnostics. `agreement` optional for scoring analysis. |
+| Indexes | `case_id` for report loading. `(case_id, source_url)` unique to avoid duplicate evidence rows for the same case and source. `source_url` for source lookup. `provider` for provider diagnostics. `agreement` optional for scoring analysis. |
 
 ### 7.7 Table — `risk_signals`
 
@@ -1701,7 +1702,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Main Columns | `id`, `case_id`, `type`, `severity`, `description`, `created_at` |
 | Constraints | `type` must match `RiskSignalType`. `severity` must be `LOW`, `MEDIUM`, or `HIGH`. A verification case should not store duplicate risk signal types. |
 | Relationships | Many risk signals belong to one verification case. |
-| Indexes | `case_id` for report loading. `severity` optional for filtering high-risk cases. |
+| Indexes | `case_id` for report loading. `(case_id, type)` unique to avoid duplicate risk signal types per case. `type` for business-rule diagnostics. `severity` optional for filtering high-risk cases. |
 
 ### 7.8 Table — `audit_logs`
 
@@ -1712,7 +1713,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 | Main Columns | `id`, `case_id`, `user_id`, `event_type`, `message`, `trace_id`, `metadata`, `created_at` |
 | Constraints | `trace_id` required for backend workflow events. Audit logs must not store secrets. |
 | Relationships | Audit log may belong to a case and/or user. |
-| Indexes | `(case_id, created_at)` for audit trail. `user_id` for user activity. `trace_id` for debugging. |
+| Indexes | `(case_id, created_at)` for audit trail. `user_id` for user activity. `trace_id` for debugging. `event_type` for event diagnostics. |
 
 ### 7.9 Table — `fact_check_cache`
 
@@ -2510,6 +2511,9 @@ Before review or deployment, manually verify:
 
 ```text
 caso2-ia-detector/
+├── .github/
+│   └── agents/
+│
 ├── .gitignore
 ├── README.md
 ├── package.json
@@ -2517,6 +2521,7 @@ caso2-ia-detector/
 ├── prisma.config.ts
 │
 ├── docs/
+│   ├── agent-findings.md
 │   └── assets/
 │       ├── prototype/
 │       │   └── .gitkeep
@@ -2528,8 +2533,12 @@ caso2-ia-detector/
 │   └── dbml/
 │       └── ia-detector.dbml
 │
-└── prisma/
-    └── schema.prisma
+├── prisma/
+│   └── schema.prisma
+│
+└── src/
+    ├── backend/
+    └── frontend/
 ```
 
 ### 16.2 Supporting Artifacts
@@ -2538,6 +2547,8 @@ caso2-ia-detector/
 |---|---|
 | Prisma schema | [Open Prisma schema](prisma/schema.prisma) |
 | DBML model | [Open DBML model](database/dbml/ia-detector.dbml) |
+| Agent definitions | [Open agents folder](.github/agents/) |
+| Agent findings log | [Open agent findings log](docs/agent-findings.md) |
 | Prototype assets | [Open prototype assets folder](docs/assets/prototype/) |
 | UX testing assets | [Open UX testing assets folder](docs/assets/ux-testing/) |
 
