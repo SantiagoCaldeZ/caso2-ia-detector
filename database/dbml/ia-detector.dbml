@@ -1,6 +1,6 @@
 Project ia_detector {
   database_type: "PostgreSQL"
-  Note: "Database model for IA Detector MVP. Supports users, verification cases, evidence, risk signals, uploaded files, audit logs, refresh tokens and fact-check cache."
+  Note: "Database model for IA Detector MVP. Supports users, refresh tokens, uploaded files, verification cases, evidence results, risk signals, audit logs, and normalized fact-check cache. The system stores editorial analysis reports, not TRUE/FALSE verdicts."
 }
 
 /* =========================
@@ -17,29 +17,28 @@ Enum user_status {
   DISABLED
 }
 
-Enum verification_input_type {
+Enum input_type {
   TEXT
   URL
   IMAGE
 }
 
 Enum verification_status {
-  CREATED
   PROCESSING
   COMPLETED
   FAILED
-}
-
-Enum recommended_action {
-  READY_FOR_EDITORIAL_REVIEW
-  DO_NOT_PUBLISH_YET
-  NEEDS_MANUAL_REVIEW
 }
 
 Enum source_agreement {
   HIGH
   MEDIUM
   LOW
+}
+
+Enum recommended_action {
+  READY_FOR_EDITORIAL_REVIEW
+  DO_NOT_PUBLISH_YET
+  NEEDS_MANUAL_REVIEW
 }
 
 Enum evidence_agreement {
@@ -56,26 +55,32 @@ Enum risk_severity {
 }
 
 Enum risk_signal_type {
-  NO_SOURCE
-  EMOTIONAL_LANGUAGE
+  NO_RELEVANT_EVIDENCE
   CONTRADICTORY_EVIDENCE
   LOW_SOURCE_AGREEMENT
-  OCR_UNCERTAINTY
   PROVIDER_UNAVAILABLE
+  OCR_UNCERTAINTY
+  UNKNOWN_SOURCE
+  EMOTIONAL_LANGUAGE
+  RECENT_BREAKING_CLAIM
+  SOURCE_CONTENT_UNAVAILABLE
 }
 
 Enum audit_event_type {
-  USER_LOGIN
-  USER_LOGOUT
+  USER_REGISTERED
+  USER_LOGGED_IN
+  USER_LOGGED_OUT
+  SESSION_REFRESHED
+  FILE_UPLOADED
   VERIFICATION_CREATED
+  INPUT_PREPROCESSED
   CLAIM_EXTRACTED
+  EVIDENCE_SEARCH_STARTED
   EVIDENCE_SEARCH_COMPLETED
+  EVIDENCE_SEARCH_FAILED
   RISK_ANALYSIS_COMPLETED
   ANALYSIS_REPORT_GENERATED
   VERIFICATION_FAILED
-  IMAGE_UPLOADED
-  HISTORY_OPENED
-  AUDIT_LOG_VIEWED
 }
 
 /* =========================
@@ -84,8 +89,8 @@ Enum audit_event_type {
 
 Table users {
   id uuid [pk, not null, default: `gen_random_uuid()`]
-  email varchar(255) [not null, unique]
   name varchar(150) [not null]
+  email varchar(255) [not null, unique]
   password_hash text [not null]
   role user_role [not null, default: 'JOURNALIST']
   status user_status [not null, default: 'ACTIVE']
@@ -96,9 +101,10 @@ Table users {
   indexes {
     email [unique, name: "users_email_unique"]
     role [name: "users_role_idx"]
+    status [name: "users_status_idx"]
   }
 
-  Note: "Stores IA Detector users. Passwords must be stored as hashes only."
+  Note: "Stores journalist and admin accounts. Passwords must be stored as hashes only. The status field supports inactive or blocked login behavior."
 }
 
 /* =========================
@@ -108,17 +114,18 @@ Table users {
 Table refresh_tokens {
   id uuid [pk, not null, default: `gen_random_uuid()`]
   user_id uuid [not null]
-  token_hash text [not null]
+  token_hash text [not null, unique]
   expires_at timestamp [not null]
   revoked_at timestamp
   created_at timestamp [not null, default: `now()`]
 
   indexes {
     user_id [name: "refresh_tokens_user_id_idx"]
-    token_hash [name: "refresh_tokens_token_hash_idx"]
+    token_hash [unique, name: "refresh_tokens_token_hash_unique"]
+    expires_at [name: "refresh_tokens_expires_at_idx"]
   }
 
-  Note: "Stores hashed refresh tokens. Raw tokens must never be stored."
+  Note: "Stores hashed refresh tokens for session renewal and logout. Raw refresh tokens must never be stored. Refresh token rotation revokes the previous token hash and stores a new one."
 }
 
 /* =========================
@@ -141,7 +148,7 @@ Table uploaded_files {
     sha256_hash [name: "uploaded_files_hash_idx"]
   }
 
-  Note: "Stores metadata for images or screenshots. File content is stored in Supabase Storage; local demo mode may use mock or local storage paths."
+  Note: "Stores metadata for uploaded images or screenshots. File content is stored in object storage. Allowed MIME types are image/jpeg, image/png, and image/webp. Maximum file size is 5 MB."
 }
 
 /* =========================
@@ -151,29 +158,30 @@ Table uploaded_files {
 Table verification_cases {
   id uuid [pk, not null, default: `gen_random_uuid()`]
   user_id uuid [not null]
-  input_type verification_input_type [not null]
+  input_type input_type [not null]
   raw_input text
   uploaded_file_id uuid
+  original_input_preview text [not null]
   extracted_claim text
-  status verification_status [not null, default: 'CREATED']
+  status verification_status [not null, default: 'PROCESSING']
   evidence_score int
   risk_score int
   source_agreement source_agreement
   recommended_action recommended_action
   recommendation_reason text
-  error_code varchar(100)
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
   completed_at timestamp
+  failed_at timestamp
 
   indexes {
     (user_id, created_at) [name: "verification_cases_user_created_idx"]
     status [name: "verification_cases_status_idx"]
-    uploaded_file_id [name: "verification_cases_file_idx"]
     recommended_action [name: "verification_cases_recommended_action_idx"]
+    uploaded_file_id [name: "verification_cases_file_idx"]
   }
 
-  Note: "Main verification record. Processing status is technical. Editorial recommendation is stored separately in recommended_action. The system must never store TRUE/FALSE as final output."
+  Note: "Main verification record. Status is technical and must be PROCESSING, COMPLETED, or FAILED. Editorial recommendation is stored separately in recommended_action. The system must never store TRUE/FALSE as final output. evidence_score and risk_score are integer values from 0 to 100 when present."
 }
 
 /* =========================
@@ -182,25 +190,27 @@ Table verification_cases {
 
 Table evidence_results {
   id uuid [pk, not null, default: `gen_random_uuid()`]
-  verification_case_id uuid [not null]
-  source_name varchar(255) [not null]
+  case_id uuid [not null]
   title text [not null]
-  url text [not null]
-  rating varchar(255)
-  claim_reviewed text
+  source_name varchar(255) [not null]
+  source_url text [not null]
+  publisher varchar(255)
+  published_at timestamp
+  summary text [not null]
   relevance_score int [not null]
   agreement evidence_agreement [not null, default: 'UNKNOWN']
-  published_at timestamp
   provider varchar(100) [not null]
   created_at timestamp [not null, default: `now()`]
 
   indexes {
-    verification_case_id [name: "evidence_case_idx"]
-    url [name: "evidence_url_idx"]
+    (case_id, source_url) [unique, name: "evidence_case_source_url_unique"]
+    case_id [name: "evidence_case_idx"]
+    source_url [name: "evidence_source_url_idx"]
     provider [name: "evidence_provider_idx"]
+    agreement [name: "evidence_agreement_idx"]
   }
 
-  Note: "Stores evidence found for one verification case. Evidence contributes to scoring and source agreement, but does not produce a truth/falsity verdict by itself."
+  Note: "Stores normalized evidence for one verification case. Evidence contributes to scoring and source agreement, but does not produce a truth/falsity verdict by itself. relevance_score is expected to be 0 to 100."
 }
 
 /* =========================
@@ -209,18 +219,20 @@ Table evidence_results {
 
 Table risk_signals {
   id uuid [pk, not null, default: `gen_random_uuid()`]
-  verification_case_id uuid [not null]
+  case_id uuid [not null]
   type risk_signal_type [not null]
   severity risk_severity [not null]
   description text [not null]
   created_at timestamp [not null, default: `now()`]
 
   indexes {
-    verification_case_id [name: "risk_signals_case_idx"]
+    (case_id, type) [unique, name: "risk_signals_case_type_unique"]
+    case_id [name: "risk_signals_case_idx"]
     type [name: "risk_signals_type_idx"]
+    severity [name: "risk_signals_severity_idx"]
   }
 
-  Note: "Stores structured risk indicators shown on the result page."
+  Note: "Stores structured risk indicators shown on the result page. A verification case should not store duplicate risk signal types. NO_RELEVANT_EVIDENCE must not be stored when providerStatus=UNAVAILABLE and cacheStatus=MISS."
 }
 
 /* =========================
@@ -229,21 +241,22 @@ Table risk_signals {
 
 Table audit_logs {
   id uuid [pk, not null, default: `gen_random_uuid()`]
+  case_id uuid
   user_id uuid
-  verification_case_id uuid
   event_type audit_event_type [not null]
+  message text [not null]
   trace_id varchar(100) [not null]
   metadata jsonb
   created_at timestamp [not null, default: `now()`]
 
   indexes {
-    verification_case_id [name: "audit_case_idx"]
+    (case_id, created_at) [name: "audit_case_created_idx"]
     user_id [name: "audit_user_idx"]
     trace_id [name: "audit_trace_idx"]
     event_type [name: "audit_event_type_idx"]
   }
 
-  Note: "Append-only audit table. Must not store secrets, API keys, passwords or refresh tokens."
+  Note: "Append-only audit table for traceability. Must not store secrets, API keys, passwords, raw refresh tokens, or provider credentials. GET /api/audit/:caseId is read-only and must not create audit events."
 }
 
 /* =========================
@@ -252,7 +265,7 @@ Table audit_logs {
 
 Table fact_check_cache {
   id uuid [pk, not null, default: `gen_random_uuid()`]
-  cache_key varchar(255) [not null]
+  cache_key varchar(255) [not null, unique]
   normalized_claim text [not null]
   provider varchar(100) [not null]
   response_data jsonb [not null]
@@ -266,25 +279,25 @@ Table fact_check_cache {
     provider [name: "fact_check_cache_provider_idx"]
   }
 
-  Note: "Database-backed cache for repeated fact-check queries. MVP TTL is 60 minutes."
+  Note: "Caches normalized provider evidence for repeated fact-check queries. response_data stores normalized evidence used by the application, not raw provider responses. Expired cache must not be used for normal cache hits; it may be used only as STALE_HIT fallback when providerStatus=UNAVAILABLE."
 }
 
 /* =========================
    RELATIONSHIPS
 ========================= */
 
-Ref: refresh_tokens.user_id > users.id
+Ref: refresh_tokens.user_id > users.id [delete: cascade]
 
-Ref: uploaded_files.owner_user_id > users.id
+Ref: uploaded_files.owner_user_id > users.id [delete: cascade]
 
-Ref: verification_cases.user_id > users.id
+Ref: verification_cases.user_id > users.id [delete: cascade]
 
 Ref: verification_cases.uploaded_file_id > uploaded_files.id
 
-Ref: evidence_results.verification_case_id > verification_cases.id
+Ref: evidence_results.case_id > verification_cases.id [delete: cascade]
 
-Ref: risk_signals.verification_case_id > verification_cases.id
+Ref: risk_signals.case_id > verification_cases.id [delete: cascade]
 
 Ref: audit_logs.user_id > users.id
 
-Ref: audit_logs.verification_case_id > verification_cases.id
+Ref: audit_logs.case_id > verification_cases.id [delete: cascade]

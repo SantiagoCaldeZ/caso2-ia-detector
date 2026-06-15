@@ -22,29 +22,28 @@ enum UserStatus {
   DISABLED
 }
 
-enum VerificationInputType {
+enum InputType {
   TEXT
   URL
   IMAGE
 }
 
 enum VerificationStatus {
-  CREATED
   PROCESSING
   COMPLETED
   FAILED
-}
-
-enum RecommendedAction {
-  READY_FOR_EDITORIAL_REVIEW
-  DO_NOT_PUBLISH_YET
-  NEEDS_MANUAL_REVIEW
 }
 
 enum SourceAgreement {
   HIGH
   MEDIUM
   LOW
+}
+
+enum RecommendedAction {
+  READY_FOR_EDITORIAL_REVIEW
+  DO_NOT_PUBLISH_YET
+  NEEDS_MANUAL_REVIEW
 }
 
 enum EvidenceAgreement {
@@ -61,26 +60,32 @@ enum RiskSeverity {
 }
 
 enum RiskSignalType {
-  NO_SOURCE
-  EMOTIONAL_LANGUAGE
+  NO_RELEVANT_EVIDENCE
   CONTRADICTORY_EVIDENCE
   LOW_SOURCE_AGREEMENT
-  OCR_UNCERTAINTY
   PROVIDER_UNAVAILABLE
+  OCR_UNCERTAINTY
+  UNKNOWN_SOURCE
+  EMOTIONAL_LANGUAGE
+  RECENT_BREAKING_CLAIM
+  SOURCE_CONTENT_UNAVAILABLE
 }
 
 enum AuditEventType {
-  USER_LOGIN
-  USER_LOGOUT
+  USER_REGISTERED
+  USER_LOGGED_IN
+  USER_LOGGED_OUT
+  SESSION_REFRESHED
+  FILE_UPLOADED
   VERIFICATION_CREATED
+  INPUT_PREPROCESSED
   CLAIM_EXTRACTED
+  EVIDENCE_SEARCH_STARTED
   EVIDENCE_SEARCH_COMPLETED
+  EVIDENCE_SEARCH_FAILED
   RISK_ANALYSIS_COMPLETED
   ANALYSIS_REPORT_GENERATED
   VERIFICATION_FAILED
-  IMAGE_UPLOADED
-  HISTORY_OPENED
-  AUDIT_LOG_VIEWED
 }
 
 /**
@@ -91,8 +96,8 @@ enum AuditEventType {
 
 model User {
   id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String     @unique @db.VarChar(255)
   name         String     @db.VarChar(150)
+  email        String     @unique(map: "users_email_unique") @db.VarChar(255)
   passwordHash String     @map("password_hash")
   role         UserRole   @default(JOURNALIST)
   status       UserStatus @default(ACTIVE)
@@ -106,21 +111,22 @@ model User {
   auditLogs         AuditLog[]
 
   @@index([role], map: "users_role_idx")
+  @@index([status], map: "users_status_idx")
   @@map("users")
 }
 
 model RefreshToken {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
-  tokenHash String    @map("token_hash")
+  tokenHash String    @unique(map: "refresh_tokens_token_hash_unique") @map("token_hash")
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "refresh_tokens_user_id_idx")
-  @@index([tokenHash], map: "refresh_tokens_token_hash_idx")
+  @@index([expiresAt], map: "refresh_tokens_expires_at_idx")
   @@map("refresh_tokens")
 }
 
@@ -135,7 +141,7 @@ model UploadedFile {
   createdAt        DateTime  @default(now()) @map("created_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  owner             User               @relation(fields: [ownerUserId], references: [id])
+  owner             User               @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   verificationCases VerificationCase[]
 
   @@index([ownerUserId], map: "uploaded_files_owner_idx")
@@ -144,88 +150,93 @@ model UploadedFile {
 }
 
 model VerificationCase {
-  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId               String                @map("user_id") @db.Uuid
-  inputType            VerificationInputType @map("input_type")
-  rawInput             String?               @map("raw_input")
-  uploadedFileId       String?               @map("uploaded_file_id") @db.Uuid
-  extractedClaim       String?               @map("extracted_claim")
-  status               VerificationStatus    @default(CREATED)
-  evidenceScore        Int?                  @map("evidence_score")
-  riskScore            Int?                  @map("risk_score")
-  sourceAgreement      SourceAgreement?      @map("source_agreement")
-  recommendedAction    RecommendedAction?    @map("recommended_action")
-  recommendationReason String?               @map("recommendation_reason")
-  errorCode            String?               @map("error_code") @db.VarChar(100)
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
-  completedAt          DateTime?             @map("completed_at")
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String             @map("user_id") @db.Uuid
+  inputType            InputType          @map("input_type")
+  rawInput             String?            @map("raw_input")
+  uploadedFileId       String?            @map("uploaded_file_id") @db.Uuid
+  originalInputPreview String             @map("original_input_preview")
+  extractedClaim       String?            @map("extracted_claim")
+  status               VerificationStatus @default(PROCESSING)
+  evidenceScore        Int?               @map("evidence_score")
+  riskScore            Int?               @map("risk_score")
+  sourceAgreement      SourceAgreement?   @map("source_agreement")
+  recommendedAction    RecommendedAction? @map("recommended_action")
+  recommendationReason String?            @map("recommendation_reason")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  completedAt          DateTime?          @map("completed_at")
+  failedAt             DateTime?          @map("failed_at")
 
-  user         User          @relation(fields: [userId], references: [id])
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   uploadedFile UploadedFile? @relation(fields: [uploadedFileId], references: [id])
 
   evidenceResults EvidenceResult[]
   riskSignals     RiskSignal[]
   auditLogs       AuditLog[]
 
-  @@index([recommendedAction], map: "verification_cases_recommended_action_idx")
   @@index([userId, createdAt], map: "verification_cases_user_created_idx")
   @@index([status], map: "verification_cases_status_idx")
+  @@index([recommendedAction], map: "verification_cases_recommended_action_idx")
   @@index([uploadedFileId], map: "verification_cases_file_idx")
   @@map("verification_cases")
 }
 
 model EvidenceResult {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  verificationCaseId String            @map("verification_case_id") @db.Uuid
-  sourceName         String            @map("source_name") @db.VarChar(255)
-  title              String
-  url                String
-  rating             String?           @db.VarChar(255)
-  claimReviewed      String?           @map("claim_reviewed")
-  relevanceScore     Int               @map("relevance_score")
-  agreement          EvidenceAgreement @default(UNKNOWN)
-  publishedAt        DateTime?         @map("published_at")
-  provider           String            @db.VarChar(100)
-  createdAt          DateTime          @default(now()) @map("created_at")
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId         String            @map("case_id") @db.Uuid
+  title          String
+  sourceName     String            @map("source_name") @db.VarChar(255)
+  sourceUrl      String            @map("source_url")
+  publisher      String?           @db.VarChar(255)
+  publishedAt    DateTime?         @map("published_at")
+  summary        String
+  relevanceScore Int               @map("relevance_score")
+  agreement      EvidenceAgreement @default(UNKNOWN)
+  provider       String            @db.VarChar(100)
+  createdAt      DateTime          @default(now()) @map("created_at")
 
-  verificationCase VerificationCase @relation(fields: [verificationCaseId], references: [id], onDelete: Cascade)
+  verificationCase VerificationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
-  @@unique([verificationCaseId, url], map: "evidence_case_url_unique")
-  @@index([verificationCaseId], map: "evidence_case_idx")
-  @@index([url], map: "evidence_url_idx")
+  @@unique([caseId, sourceUrl], map: "evidence_case_source_url_unique")
+  @@index([caseId], map: "evidence_case_idx")
+  @@index([sourceUrl], map: "evidence_source_url_idx")
   @@index([provider], map: "evidence_provider_idx")
+  @@index([agreement], map: "evidence_agreement_idx")
   @@map("evidence_results")
 }
 
 model RiskSignal {
-  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  verificationCaseId String         @map("verification_case_id") @db.Uuid
-  type               RiskSignalType
-  severity           RiskSeverity
-  description        String
-  createdAt          DateTime       @default(now()) @map("created_at")
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId      String         @map("case_id") @db.Uuid
+  type        RiskSignalType
+  severity    RiskSeverity
+  description String
+  createdAt   DateTime       @default(now()) @map("created_at")
 
-  verificationCase VerificationCase @relation(fields: [verificationCaseId], references: [id], onDelete: Cascade)
+  verificationCase VerificationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
-  @@index([verificationCaseId], map: "risk_signals_case_idx")
+  @@unique([caseId, type], map: "risk_signals_case_type_unique")
+  @@index([caseId], map: "risk_signals_case_idx")
   @@index([type], map: "risk_signals_type_idx")
+  @@index([severity], map: "risk_signals_severity_idx")
   @@map("risk_signals")
 }
 
 model AuditLog {
-  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId             String?        @map("user_id") @db.Uuid
-  verificationCaseId String?        @map("verification_case_id") @db.Uuid
-  eventType          AuditEventType @map("event_type")
-  traceId            String         @map("trace_id") @db.VarChar(100)
-  metadata           Json?
-  createdAt          DateTime       @default(now()) @map("created_at")
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId    String?        @map("case_id") @db.Uuid
+  userId    String?        @map("user_id") @db.Uuid
+  eventType AuditEventType @map("event_type")
+  message   String
+  traceId   String         @map("trace_id") @db.VarChar(100)
+  metadata  Json?
+  createdAt DateTime       @default(now()) @map("created_at")
 
   user             User?             @relation(fields: [userId], references: [id])
-  verificationCase VerificationCase? @relation(fields: [verificationCaseId], references: [id], onDelete: Cascade)
+  verificationCase VerificationCase? @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
-  @@index([verificationCaseId], map: "audit_case_idx")
+  @@index([caseId, createdAt], map: "audit_case_created_idx")
   @@index([userId], map: "audit_user_idx")
   @@index([traceId], map: "audit_trace_idx")
   @@index([eventType], map: "audit_event_type_idx")
