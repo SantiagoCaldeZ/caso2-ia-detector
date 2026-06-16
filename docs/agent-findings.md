@@ -1,5 +1,7 @@
 # Hallazgos y Correcciones Aplicadas por los Agentes
 
+> This file is a living template for future agent review findings. Placeholder entries do not represent real findings until filled by the team.
+
 ## Registro de cambios
 
 ### [Fecha] - [Nombre del agente] - [ID del hallazgo]
