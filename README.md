@@ -1,4 +1,4 @@
-# IA Detector — Software Design and Implementation Contract
+﻿# IA Detector — Software Design and Implementation Contract
 
 IA Detector is a web application for journalists and editorial teams who need to review suspicious digital content before publication.
 
@@ -26,6 +26,10 @@ This `README.md` is the single source of truth for the MVP design and implementa
 14. [Deployment Contract](#14-deployment-contract)
 15. [QA and Acceptance Criteria](#15-qa-and-acceptance-criteria)
 16. [Repository Structure and Validation](#16-repository-structure-and-validation)
+17. [AI-Assisted Development Workflow](#17-ai-assisted-development-workflow)
+18. [Case #2 Traceability and Team Ownership](#18-case-2-traceability-and-team-ownership)
+19. [Sales Pitch and Demo Plan](#19-sales-pitch-and-demo-plan)
+
 
 ---
 
@@ -949,6 +953,72 @@ src/frontend/
 | Image flow | Image verification must upload the image first and then submit `uploadedFileId`. |
 | Partial report visibility | Provider or OCR degradation must be visible as warning context, not hidden. |
 
+### 4.13 Frontend Naming and Component Conventions
+
+| Item                   | Convention                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| Page components        | PascalCase with `Page` suffix. Example: `VerificationHubPage`, `VerificationResultPage`.   |
+| Reusable UI components | PascalCase. Example: `RecommendationBanner`, `EvidenceList`, `RiskSignalList`.             |
+| Hooks                  | camelCase with `use` prefix. Example: `useAuthSession`, `useVerificationHistory`.          |
+| API client files       | camelCase or feature-based names under `shared/api`. Example: `verificationApi.ts`.        |
+| DTO and type files     | PascalCase or grouped feature names under `shared/types`. Example: `VerificationTypes.ts`. |
+| Zustand stores         | camelCase with `Store` suffix. Example: `authStore.ts`, `uiStore.ts`.                      |
+| Test files             | Same component or module name with `.test.tsx` or `.spec.tsx`.                             |
+| CSS utility usage      | Prefer Tailwind utility classes and shared UI components over custom one-off CSS.          |
+
+Implementation rule:
+
+```text
+Frontend files must use names that make the feature and responsibility clear. Components should not combine page orchestration, API calls, formatting, and low-level UI rendering in a single file.
+```
+
+### 4.14 Frontend Visual Style and Branding Guidelines
+
+The MVP visual identity must communicate clarity, caution, and editorial trust. It should look like a professional verification workspace, not like an entertainment classifier.
+
+| Element             | Guideline                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary color       | Use a trustworthy blue or blue-slate tone for primary actions, navigation, and active states.                                                             |
+| Neutral colors      | Use white, slate, gray, and soft borders for report readability.                                                                                          |
+| Warning color       | Use amber or orange for manual review and provider degradation states.                                                                                    |
+| High-risk color     | Use red only for strong warning states such as `DO_NOT_PUBLISH_YET`.                                                                                      |
+| Success/ready color | Use green only for low-risk positive readiness states such as `READY_FOR_EDITORIAL_REVIEW`.                                                               |
+| Typography          | Use a modern sans-serif font. Headings should be clear and compact. Body text must prioritize readability.                                                |
+| Spacing             | Use consistent spacing scale. Report sections should have enough whitespace to separate evidence, risks, recommendation, and audit trail.                 |
+| Icons               | Use icons only to support meaning, not as the only indicator of status.                                                                                   |
+| Logo                | If a final logo exists, it must be placed in the authenticated layout and login/register pages. If no final logo exists, use the text mark `IA Detector`. |
+| Accessibility       | Color must not be the only way to communicate risk. Each status must also have text labels.                                                               |
+| Data density        | Reports may contain many evidence and audit items, so cards and tables must remain scannable.                                                             |
+
+Recommendation display rule:
+
+```text
+The UI must display user-facing labels such as "Ready for editorial review", "Do not publish yet", and "Needs manual review". It must not show internal enum values as the main product language.
+```
+
+### 4.15 Frontend Performance Strategy
+
+The frontend must remain responsive during report generation, history loading, and result rendering.
+
+| Concern                  | Strategy                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Lazy loading             | Route-level pages should be lazy loaded when implementation starts.                                      |
+| Code splitting           | Keep feature modules separated by route and domain: auth, verification, history, audit.                  |
+| API caching              | Use TanStack Query for server data such as current user, history, case detail, and audit trail.          |
+| Avoid duplicate requests | Use query keys based on endpoint and parameters. Disable duplicate submit while verification is running. |
+| Image handling           | Validate file type and size before upload. Avoid rendering large raw images in report views.             |
+| Memoization              | Use memoization only for expensive derived report summaries or large lists.                              |
+| Virtualization           | Not required for MVP unless history or audit trail lists become large.                                   |
+| Loading states           | Use skeletons or progress indicators for report generation and case loading.                             |
+| Error recovery           | Provide retry actions for failed history or detail loading when appropriate.                             |
+| Bundle control           | Avoid adding large UI or charting libraries unless the component is required by the MVP.                 |
+
+Implementation rule:
+
+```text
+Performance optimizations must not hide verification context. Evidence, risk signals, recommendation reason, and trace IDs must remain accessible.
+```
+
 ---
 
 ## 5. Backend Module Contracts
@@ -1143,6 +1213,76 @@ Implementation rule:
 ```text
 Application services must not import Prisma directly. Prisma access must stay inside repository classes.
 ```
+
+### 5.13 Backend Runtime and Data Operations Contract
+
+This section defines operational backend and data-layer decisions required for local MVP execution and later deployment.
+
+| Concern                | MVP Decision                                                                                              | Implementation Rule                                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Database migrations    | Prisma migrations are the source of database schema evolution once implementation starts.                 | Migrations must be generated from `prisma/schema.prisma` and reviewed before execution.                                             |
+| Schema validation      | `prisma format` and `prisma validate` are required before commits that modify the data model.             | The schema must remain aligned with the README and DBML.                                                                            |
+| Seed data              | Seed data may be used for local demo accounts, mock evidence, and repeatable demo cases.                  | Seed data must not contain real personal data or private participant information.                                                   |
+| Rollback strategy | Local MVP rollback is handled by reverting commits and reapplying migrations from a clean local database. | Production-style rollback scripts are not required for MVP, but migration changes must be small and reviewable. |
+| Connection pooling     | Local MVP uses the default Prisma/PostgreSQL connection behavior.                                         | If deployed to Supabase or Render, connection limits must be reviewed and pooling configured according to the provider environment. |
+| Long-running processes | Verification analysis must run synchronously for MVP unless response time becomes unacceptable.           | If processing grows, the pipeline can later move to a queue-based worker model.                                                     |
+| Queues                 | No queue is required for the first local MVP.                                                             | Queue design is future scope unless provider latency blocks the demo flow.                                                          |
+| Threading | Node.js event loop is sufficient for MVP. | CPU-heavy AI, OCR, or image processing must not be added to the main request thread without reassessment. |
+| Caching                | Fact-check evidence cache is stored in `fact_check_cache`.                                                | Fresh cache may be used as `HIT`; expired cache may only be used as `STALE_HIT` after provider failure.                             |
+| Backups                | Local MVP does not require automated backups.                                                             | For deployed environments, database backups must be enabled through the managed provider.                                           |
+| Secrets                | Secrets must be read from environment variables through centralized configuration.                        | Secrets must not be hardcoded, logged, committed, or returned in API responses.                                                     |
+
+Implementation rule:
+
+```text
+Operational shortcuts are allowed for local MVP only when they do not contradict security, auditability, data integrity, or README-defined contracts.
+```
+
+### 5.14 Local MVP Data Initialization Contract
+
+The MVP must be easy to run locally for development, review, and demo.
+
+| Artifact                         | Purpose                                                         | Required for MVP                            |
+| -------------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
+| `.env.example`                   | Documents required environment variables without real secrets.  | Yes                                         |
+| `prisma/schema.prisma`           | Defines the database model.                                     | Yes                                         |
+| `database/dbml/ia-detector.dbml` | Documents the relational design.                                | Yes                                         |
+| Prisma migrations                | Creates database schema from Prisma once implementation starts. | Required when persistence is implemented    |
+| Seed script                      | Creates demo users, mock cases, or repeatable local data.       | Required when MVP demo needs preloaded data |
+| Mock providers                   | Allow demo without real AI/OCR or fact-checking credentials.    | Yes                                         |
+| Local run scripts                | Start frontend, backend, and data validation commands.          | Required when MVP code exists               |
+
+Recommended local setup flow once implementation starts:
+
+```powershell
+npm install
+$env:DATABASE_URL="postgresql://user:password@localhost:5432/ia_detector"
+npm run validate
+```
+
+Expected future MVP run flow:
+
+```powershell
+npm run dev:backend
+npm run dev:frontend
+```
+
+Expected future data setup flow:
+
+```powershell
+npm run db:migrate
+npm run db:seed
+```
+
+Rules:
+
+| Rule                     | Requirement                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| No real secrets          | `.env.example` must contain placeholders only.                                             |
+| No real participant data | UX testing participant information must not be inserted into seed data.                    |
+| Repeatable demo          | Seed or mock data should produce deterministic demo behavior.                              |
+| README alignment         | When scripts are added to `package.json`, this section must be updated in the same commit. |
+| Safe local execution     | Data initialization commands must clearly target local development databases only.         |
 
 ---
 
@@ -2028,6 +2168,92 @@ Only patterns directly used by the MVP are included.
 
 When a limit is exceeded, the backend returns `429 RATE_LIMIT_EXCEEDED` using `ErrorResponseDTO`.
 
+### 10.8 OWASP-Oriented Security Checklist
+
+The MVP must follow practical OWASP-oriented security rules for authentication, authorization, input validation, upload handling, error handling, and dependency control.
+
+| Area                 | Requirement                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication       | Passwords must be hashed with Argon2id. Access tokens must be short-lived. Refresh tokens must be stored as httpOnly cookies.                           |
+| Authorization        | Every protected resource must validate ownership or `ADMIN` role before returning data.                                                                 |
+| Input validation     | All request bodies, route params, query params, and upload metadata must be validated before reaching application services.                             |
+| Output encoding      | User-provided content must be rendered safely in the frontend and must not be injected as raw HTML.                                                     |
+| File upload security | Uploaded files must be restricted by MIME type, size, authenticated ownership, and storage path isolation.                                              |
+| Error handling       | Errors must return safe messages and `traceId`. Stack traces, secrets, provider keys, database internals, and raw provider errors must not be returned. |
+| Secrets management   | Secrets must come from environment variables and must not be committed, logged, or exposed to frontend code.                                            |
+| Dependency security  | Dependencies must be kept minimal and reviewed before adding new packages.                                                                              |
+| Rate limiting        | Authentication and verification endpoints should apply rate limiting before production deployment.                                                      |
+| Auditability         | Security-relevant actions must write audit events when appropriate.                                                                                     |
+
+Implementation rule:
+
+```text
+Security controls must be implemented in backend guards, validation layers, repositories, upload services, and centralized error handling. They must not depend only on frontend checks.
+```
+
+### 10.9 Privacy and Data Minimization Rules
+
+IA Detector handles user accounts, submitted claims, uploaded image metadata, generated evidence, risk signals, and audit trails. The MVP must store only what is required to support verification, history, authorization, and traceability.
+
+| Data Type         | Privacy Rule                                                                                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User account data | Store only name, email, role, password hash, and timestamps required for authentication and authorization.                                               |
+| Passwords         | Never store plaintext passwords. Never log passwords.                                                                                                    |
+| Refresh tokens    | Store only hashed refresh tokens. Never store raw refresh token values in the database.                                                                  |
+| Submitted text    | Store only the original preview required for history and report context, not unnecessary full private content unless implementation explicitly needs it. |
+| Uploaded files    | Store file metadata and storage path. Access must be restricted to the owner or `ADMIN`.                                                                 |
+| Evidence results  | Store normalized evidence fields only. Do not store raw provider payloads as report data.                                                                |
+| Audit logs        | Store event type, message, trace ID, user/case references, and timestamp. Do not store secrets or sensitive raw payloads.                                |
+| UX testing data   | Do not store real participant personal data in seed data or product tables.                                                                              |
+| Logs              | Logs must avoid passwords, tokens, provider credentials, raw uploaded file contents, and unnecessary submitted content.                                  |
+
+Data minimization rule:
+
+```text
+When there is a choice between storing raw submitted content and storing a safe preview, the MVP should prefer the safe preview unless full content is required by an implemented use case.
+```
+
+### 10.10 Masking and Safe Display Rules
+
+The frontend and backend must avoid exposing sensitive values in user-facing screens, logs, errors, and debugging output.
+
+| Value                 | Display Rule                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Password              | Never displayed, logged, or returned.                                                                                                     |
+| Access token          | Never displayed, stored in persistent browser storage, logged, or returned after initial auth response except through expected auth flow. |
+| Refresh token         | Never accessible to frontend JavaScript. Stored only as httpOnly cookie.                                                                  |
+| Provider API keys     | Never displayed, returned, logged, or bundled into frontend code.                                                                         |
+| Database URL          | Never displayed, returned, or logged.                                                                                                     |
+| Trace ID              | May be displayed to users for support and debugging.                                                                                      |
+| Email                 | May be displayed to the authenticated user. Admin-wide display requires role-based access.                                                |
+| Uploaded file path    | Must not be exposed as a public unrestricted URL unless the storage layer enforces safe access.                                           |
+| Raw provider response | Must not be displayed in product UI. Only normalized evidence DTOs may be displayed.                                                      |
+
+Implementation rule:
+
+```text
+Debug information may exist in local development logs only when it does not expose secrets, tokens, passwords, raw provider payloads, or private submitted content.
+```
+
+### 10.11 Session Storage and Token Handling Rules
+
+| Concern                   | Rule                                                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Access token storage      | Access token is stored in memory only.                                                                                                          |
+| Forbidden browser storage | Access token must not be stored in `localStorage`, `sessionStorage`, IndexedDB, persistent Zustand stores, or cookies accessible to JavaScript. |
+| Refresh token storage     | Refresh token must be stored by the backend as an httpOnly cookie.                                                                              |
+| Session refresh           | Frontend refreshes the access token through `POST /api/auth/refresh`.                                                                           |
+| Logout                    | Logout revokes the refresh token, clears the refresh cookie, and clears in-memory access token state.                                           |
+| Page reload               | Page reload loses in-memory access token and must rely on refresh flow.                                                                         |
+| Expired access token      | API client should attempt refresh once, then redirect to `/login` if refresh fails.                                                             |
+| Revoked refresh token     | Backend returns `401` and frontend clears auth state.                                                                                           |
+
+Implementation rule:
+
+```text
+Authentication state must be easy to clear and must not survive logout through persistent browser storage.
+```
+
 ---
 
 ## 11. Observability Contract
@@ -2288,6 +2514,66 @@ When Maze evidence exists, each correction must be traceable:
 
 No correction should be documented as applied unless the prototype was actually changed.
 
+### 13.6 UX Ownership and Evidence Responsibility
+
+UX prototype and testing artifacts are owned by the UX/prototyping track. The technical design track defines how those artifacts must be integrated into this repository, but UX results must only be added when they come from real prototype work and real participant sessions.
+
+| UX Artifact                | Responsible Area | Repository Location or Reference                                            | Evidence Rule                                                                    |
+| -------------------------- | ---------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Figma prototype            | UX / Prototype   | Figma link in this section and exported screens in `docs/assets/prototype/` | Add only the final reviewed prototype link or screenshots.                       |
+| Maze or equivalent UX test | UX / Prototype   | Maze link in this section and exported results in `docs/assets/ux-testing/` | Add only after the test is configured and executed.                              |
+| Participant sessions       | UX Testing       | UX testing summary table in this section or supporting docs                 | Use at least 4 participants from the design group who are not part of this team. |
+| UX tasks                   | UX Testing       | UX testing task table                                                       | Define concrete tasks before testing starts.                                     |
+| UX observations            | UX Testing       | UX findings table                                                           | Add only observations collected during real sessions.                            |
+| UX corrections             | UX / Prototype   | UX correction traceability table                                            | Each correction must reference the issue it solves and the design decision used. |
+
+Implementation rule:
+
+```text
+The repository must not present UX testing results as completed until participant sessions have actually been executed and documented.
+```
+
+### 13.7 Required UX Testing Task Format
+
+When UX testing evidence is added, each task must be documented using the following structure.
+
+| Field                | Required Content                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| Task ID              | Stable identifier. Example: `UX-TASK-01`.                                                |
+| Task Goal            | What the participant must accomplish.                                                    |
+| Starting Screen      | Prototype screen where the task begins.                                                  |
+| Success Criteria     | How the team determines whether the task was completed.                                  |
+| Observed Issues      | Navigation, comprehension, accessibility, visual hierarchy, or consistency issues found. |
+| Participant Comments | Relevant comments collected during the session.                                          |
+| Result               | Completed, partially completed, or not completed.                                        |
+
+Recommended task examples:
+
+| Task ID      | Task Goal                                | Success Criteria                                                                                                             |
+| ------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `UX-TASK-01` | Submit suspicious text for verification. | Participant identifies the input area, selects text mode, submits content, and understands that a report is being generated. |
+| `UX-TASK-02` | Interpret the verification report.       | Participant can explain evidence score, risk score, source agreement, and recommended editorial action.                      |
+| `UX-TASK-03` | Find previous verification cases.        | Participant navigates to history and opens a saved case.                                                                     |
+| `UX-TASK-04` | Understand a provider or OCR warning.    | Participant notices the warning and understands that the report requires careful manual review.                              |
+
+### 13.8 UX Findings and Correction Format
+
+When UX testing is completed, findings and corrections must be documented using this format.
+
+| Finding ID   | Related Task | Problem Detected                         | Evidence                                 | Correction Applied                       | Design Criterion                                                                                          |
+| ------------ | ------------ | ---------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `UX-FIND-01` | `UX-TASK-01` | Describe the issue found during testing. | Screenshot, Maze result, or observation. | Describe the prototype or UI correction. | Explain why this correction improves usability, navigation, accessibility, comprehension, or consistency. |
+
+Rules:
+
+| Rule                  | Requirement                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| No fabricated results | Do not add participant metrics, comments, or findings that were not collected.            |
+| No anonymous guessing | If a participant comment is summarized, it must come from an actual session.              |
+| Privacy               | Do not include participant personal data beyond anonymous labels such as `Participant 1`. |
+| Traceability          | Each correction must connect to a finding or observed usability issue.                    |
+| README alignment      | If a UX correction changes page behavior, section 4 must be updated in the same commit.   |
+
 ---
 
 ## 14. Deployment Contract
@@ -2384,6 +2670,82 @@ When implementation code exists, CI/CD must run the following stages:
 | Health Check | Backend must expose `GET /api/health`. |
 | Smoke Test | After deployment, run login, create verification, open history, and open detail. |
 | Rollback | Roll back if health check fails, authentication fails, or verification creation fails. |
+
+### 14.7 CI/CD Quality Gates
+
+The project must use quality gates to prevent undocumented, unsafe, or architecturally inconsistent changes from entering the main branch.
+
+| Gate                   | Applies When                                                                                                                   | Required Validation                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| README contract gate   | Any change affects architecture, API, DTOs, data model, frontend routes, backend services, security, deployment, or MVP scope. | README must be updated in the same commit.                                                        |
+| Database design gate   | `prisma/schema.prisma` or DBML changes.                                                                                        | Prisma schema validates and DBML remains aligned with the data model contract.                    |
+| API contract gate      | Endpoint, DTO, or error behavior changes.                                                                                      | HTTP API contract section must match implementation.                                              |
+| Frontend contract gate | Route, page, state, API consumption, or UI behavior changes.                                                                   | Frontend page contract must match implementation.                                                 |
+| Security gate          | Auth, uploads, ownership, secrets, provider integration, or error handling changes.                                            | Security contract and OWASP-oriented checklist must remain satisfied.                             |
+| Agent review gate      | AI-assisted code generation or major refactor is used.                                                                         | Relevant finding must be documented in `docs/agent-findings.md` when an agent produces a finding. |
+| MVP execution gate     | Local MVP code exists.                                                                                                         | Frontend, backend, and data layer must run locally using documented commands.                     |
+| Demo gate              | Before final sales pitch.                                                                                                      | At least one complete verification flow must work locally in mock mode.                           |
+
+### 14.8 Validation Command Set
+
+The following commands define the expected validation workflow. Commands marked as future are required once the related implementation exists.
+
+Current validation commands:
+
+```powershell
+npm install
+npm run validate
+git diff --check
+```
+
+Current repository consistency checks:
+
+```powershell
+git grep -n "PASS\|NO_PASS\|HUMAN_REVIEW" -- ':!README.md' ':!.github/agents/*'
+git grep -n "AI_DECISION_COMPLETED" -- ':!README.md' ':!.github/agents/*'
+git grep -n "Pending\|pending\|goal-map\|Goal Map\|mvp-scope.md\|problem-statement.md\|frontend-design.md\|ux-testing-results.md" -- ':!README.md' ':!.github/agents/*'
+git grep -n "Stores metadata for images or screenshots. Stores metadata" -- ':!README.md' ':!.github/agents/*'
+$encodingArtifactPattern = "$([char]0x00D4)|$([char]0x00C3)"
+Select-String -Path README.md,docs/agent-findings.md -Pattern $encodingArtifactPattern
+```
+
+Future validation commands when MVP implementation exists:
+
+```powershell
+npm run lint
+npm run test
+npm run build
+npm run test:e2e
+npm run db:migrate
+npm run db:seed
+```
+
+Rule:
+
+```text
+Future commands must not be treated as passing until the corresponding script exists in package.json and has been executed successfully.
+```
+
+### 14.9 CI/CD Execution Order and Blocking Rule
+
+The target CI/CD pipeline must execute validations in this order:
+
+| Stage               | Purpose                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| Install             | Install project dependencies.                                                                 |
+| Static validation   | Validate formatting, TypeScript, linting, and repository consistency checks.                  |
+| Database validation | Validate Prisma schema and DBML alignment.                                                    |
+| Unit tests          | Run deterministic unit tests for frontend and backend modules.                                |
+| Integration tests   | Run API, repository, and contract tests when implementation exists.                           |
+| Build               | Build frontend and backend artifacts.                                                         |
+| Security review     | Check secrets, token handling, unsafe storage, upload restrictions, and safe error responses. |
+| Deployment          | Deploy only after all required gates pass.                                                    |
+
+Pipeline rule:
+
+```text
+A CI/CD pipeline failure must block deployment until the failing gate is corrected or explicitly documented as not applicable to the current project phase.
+```
 
 ---
 
@@ -2689,3 +3051,221 @@ Before sending for review:
 | Product language avoids absolute truth labels. | UI and implementation artifacts do not use forbidden labels as product states. |
 | Cache fallback rules are consistent. | `STALE_HIT` is allowed only as provider-failure fallback, and normal expired cache is not treated as fresh evidence. |
 | README render is validated in GitHub. | Tables, Mermaid diagrams, internal anchors, and relative links render correctly. |
+
+---
+
+## 17. AI-Assisted Development Workflow
+
+This section defines how the team uses AI-assisted development artifacts to keep the MVP aligned with the architecture, README contract, database model, frontend contracts, backend contracts, and quality rules.
+
+### 17.1 Purpose
+
+The project uses specialized agents, reusable skills, and contextual commands to support implementation without losing architectural consistency.
+
+The goal is not to generate code blindly. The goal is to generate code, review it, validate it, and keep it aligned with this README.
+
+### 17.2 Agent Inventory
+
+| Area                | Agent                           | Responsibility                                                                                                                    |
+| ------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture        | `architecture-guardian`         | Validates that implemented code follows the documented architecture, layer boundaries, C4 model, and non-functional requirements. |
+| SOLID               | `design-solid-advisor`          | Reviews SOLID principles and required design patterns.                                                                            |
+| KISS                | `kiss-principle-agent`          | Detects unnecessary complexity while respecting required patterns.                                                                |
+| DRY                 | `dry-principle-agent`           | Detects duplication and suggests safe abstractions.                                                                               |
+| Frontend            | `frontend-component-generator`  | Generates frontend pages and reusable components according to page contracts.                                                     |
+| Frontend            | `responsive-design-agent`       | Reviews tablet-width and responsive behavior.                                                                                     |
+| Frontend            | `state-management-agent`        | Reviews client state, server state, authentication state, and token storage rules.                                                |
+| Backend API         | `controller-generator-agent`    | Generates API controllers according to endpoint contracts.                                                                        |
+| Backend Application | `service-generator-agent`       | Generates application services according to business rules.                                                                       |
+| Backend Persistence | `repository-generator-agent`    | Generates repositories that isolate Prisma access.                                                                                |
+| Backend DTOs        | `dto-generator-agent`           | Generates request and response DTOs according to API contracts.                                                                   |
+| Integrations        | `integration-client-generator`  | Generates provider clients, adapters, ambassadors, and mocks.                                                                     |
+| Database            | `code-generator-database`       | Generates or updates Prisma and DBML artifacts.                                                                                   |
+| Database            | `database-design-validator`     | Validates README, Prisma, and DBML alignment.                                                                                     |
+| Security            | `code-quality-security`         | Reviews security, secrets, auth, ownership, upload validation, and safe errors.                                                   |
+| Business Rules      | `business-rules-contract-agent` | Validates scoring, risk, recommendation, provider, cache, and DTO rules.                                                          |
+| Testing             | `testing-engineer`              | Generates and reviews unit, integration, API, frontend, and smoke tests.                                                          |
+
+### 17.3 Reusable Skills
+
+Reusable skills define repeatable procedures that can be followed by humans or AI tools during implementation.
+
+| Skill                     | Purpose                                                                             | Main Agents                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Generate Frontend Screen  | Create a page or screen from the frontend page contract.                            | `frontend-component-generator`, `responsive-design-agent`, `state-management-agent`                                              |
+| Generate Backend Endpoint | Create controller, DTO, service, repository, and tests for one endpoint.            | `controller-generator-agent`, `dto-generator-agent`, `service-generator-agent`, `repository-generator-agent`, `testing-engineer` |
+| Validate Architecture     | Review layer boundaries, imports, folders, and C4 alignment.                        | `architecture-guardian`, `design-solid-advisor`                                                                                  |
+| Review Database Design    | Compare README, Prisma, DBML, relations, enums, and indexes.                        | `database-design-validator`, `code-generator-database`                                                                           |
+| Review Business Rules     | Validate scoring, risk signals, recommendations, provider status, and cache status. | `business-rules-contract-agent`, `testing-engineer`                                                                              |
+| Review Security           | Review tokens, cookies, ownership, uploads, secrets, errors, and logging.           | `code-quality-security`, `state-management-agent`                                                                                |
+| Run Quality Checks        | Execute validation commands before commit or review.                                | `testing-engineer`, `database-design-validator`, `architecture-guardian`                                                         |
+
+### 17.4 Contextual Commands
+
+Contextual commands orchestrate agents and validation steps. They may be executed manually through VSCode, Copilot Chat, or an equivalent AI assistant workflow.
+
+| Command                   | Inputs                                | Agents Invoked                                                                                               | Required Validation                                                                                     |
+| ------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Generate Frontend Screen  | Route, page contract, DTOs            | `frontend-component-generator`, `responsive-design-agent`, `state-management-agent`                          | Component renders normalized DTOs and follows UX language rules.                                        |
+| Generate Backend Endpoint | Endpoint contract, DTOs, service name | `controller-generator-agent`, `dto-generator-agent`, `service-generator-agent`, `repository-generator-agent` | Controller does not import Prisma and returns `ErrorResponseDTO` on errors.                             |
+| Review SOLID Principles   | Target folder or feature              | `design-solid-advisor`                                                                                       | No controller business logic, no direct Prisma in application services, and no provider client leakage. |
+| Validate Architecture     | Full repository                       | `architecture-guardian`                                                                                      | Folder structure, imports, patterns, and boundaries match the README.                                   |
+| Review Database Design    | README, Prisma, DBML                  | `database-design-validator`                                                                                  | Prisma and DBML match the data model contract.                                                          |
+| Run Unit Tests            | Target service or feature             | `testing-engineer`                                                                                           | Rules are covered with deterministic tests.                                                             |
+| Run Security Review       | Full repository or target area        | `code-quality-security`                                                                                      | No hardcoded secrets, unsafe token storage, raw provider errors, or missing ownership checks.           |
+
+### 17.5 Required Agent Finding Log
+
+When agents are used for implementation or review, findings must be documented in:
+
+```text
+docs/agent-findings.md
+```
+
+Each finding should include:
+
+| Field                | Meaning                                        |
+| -------------------- | ---------------------------------------------- |
+| Date                 | Date when the agent review happened.           |
+| Agent                | Agent that produced the finding.               |
+| Finding              | Problem, gap, risk, or inconsistency detected. |
+| Suggested Correction | What the agent recommended.                    |
+| Applied Correction   | What the team actually changed.                |
+| Evidence             | Commit hash, diff, file path, or screenshot.   |
+
+### 17.6 AI-Assisted Development Rule
+
+AI-generated code is not accepted automatically.
+
+Before code is merged, it must satisfy:
+
+1. It follows this README.
+2. It follows the folder structure.
+3. It uses the correct DTOs.
+4. It respects layer boundaries.
+5. It does not expose secrets or raw provider data.
+6. It does not introduce absolute truth labels.
+7. It passes validation checks.
+8. It is reviewed by at least one relevant agent or team member.
+
+---
+
+## 18. Case #2 Traceability and Team Ownership
+
+This section maps the Case #2 deliverables to repository artifacts and team ownership. It prevents deliverables from being treated as implicit or undocumented.
+
+### 18.1 Deliverable Traceability Matrix
+
+| Case #2 Area                  | Repository Artifact                                                        | Owner Area              | Status Rule                                                         |
+| ----------------------------- | -------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------- |
+| Prototyping and UX refinement | Figma link, Maze link, `docs/assets/prototype/`, `docs/assets/ux-testing/` | UX / Prototype          | Evidence is added only when real participant results exist.         |
+| Frontend design               | Sections 4, 10, 12, 13, 15, 16                                             | Frontend / Architecture | Design is maintained in README and later linked to `/src/frontend`. |
+| Backend and data design       | Sections 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16                              | Backend / Data          | README, Prisma, DBML, and agents must stay aligned.                 |
+| MVP implementation            | `/src/backend`, `/src/frontend`, local run instructions, mock integrations | MVP implementation      | MVP code must follow the README contract.                           |
+| Agents                        | `.github/agents/`, `docs/agent-findings.md`                                | Architecture / Quality  | Agent usage must be documented when applied.                        |
+| Skills and commands           | Section 17                                                                 | Architecture / Quality  | Skills and commands guide implementation workflow.                  |
+| Sales pitch and demo          | Section 19 and live MVP                                                    | Full team               | Demo must use local MVP execution, not slides.                      |
+
+### 18.2 Team Responsibility Contract
+
+| Area                                | Responsibility                                                                                   | Expected Evidence                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Technical contract and architecture | Maintain README, architecture, data model, validation rules, agents, Prisma, and DBML.           | README sections, Prisma schema, DBML, agents, validation commands. |
+| UX prototype                        | Maintain Figma flow, prototype screenshots, and final UX decisions.                              | Figma link, exported screens, prototype evidence.                  |
+| UX testing                          | Configure Maze, define tasks, run participant testing, export results, and document corrections. | Maze results, participant evidence, findings, corrections.         |
+| Frontend MVP                        | Implement screens, routing, state management, API client, and report UI.                         | `/src/frontend` code and local execution instructions.             |
+| Backend MVP                         | Implement API, services, repositories, mocks, auth, validation, and persistence.                 | `/src/backend` code and local execution instructions.              |
+| Data layer                          | Maintain Prisma, DBML, migrations, seed data, and database validation.                           | `prisma/`, `database/dbml/`, validation output.                    |
+| Demo and pitch                      | Prepare the 10-minute live commercial demo using the local MVP.                                  | Demo flow, speaking script, local run confirmation.                |
+
+### 18.3 Evidence Integrity Rule
+
+The repository must not invent or simulate academic evidence.
+
+| Evidence Type         | Rule                                                |
+| --------------------- | --------------------------------------------------- |
+| UX metrics            | Added only after real UX sessions are completed.    |
+| Participant comments  | Added only when collected from actual participants. |
+| Prototype corrections | Added only after the prototype is actually updated. |
+| MVP screenshots       | Added only after the MVP screen exists.             |
+| Test results          | Added only after tests are executed.                |
+| Agent findings        | Added only after an agent review is performed.      |
+
+### 18.4 README Alignment Rule
+
+Whenever implementation changes, the same commit must update this README when the change affects:
+
+1. Public API behavior.
+2. DTOs.
+3. Database schema.
+4. Frontend routes or page behavior.
+5. Backend services or layer boundaries.
+6. Security rules.
+7. Environment variables.
+8. Mock/live integration behavior.
+9. Validation commands.
+10. MVP scope.
+
+---
+
+## 19. Sales Pitch and Demo Plan
+
+The final demo is a live product presentation. It must be conversational, commercial, and supported by the MVP running locally.
+
+### 19.1 Demo Format
+
+| Segment            |  Duration | Purpose                                                             |
+| ------------------ | --------: | ------------------------------------------------------------------- |
+| Problem Story      | 2 minutes | Explain why journalists need faster verification before publishing. |
+| Live MVP Demo      | 4 minutes | Show the core verification workflow running locally.                |
+| Value and Benefits | 2 minutes | Explain operational benefits, risk reduction, and product value.    |
+| Questions          | 2 minutes | Answer one or two audience questions.                               |
+
+### 19.2 Demo Flow
+
+The live demo should follow this order:
+
+1. Open the local frontend.
+2. Log in as a journalist.
+3. Submit suspicious text.
+4. Show the generated verification report.
+5. Explain evidence score, risk score, source agreement, and recommended editorial action.
+6. Submit a URL or image example if time allows.
+7. Open verification history.
+8. Open the saved case detail.
+9. Show the audit trail.
+10. Explain why the system supports editorial judgment instead of replacing it.
+
+### 19.3 Demo Success Criteria
+
+| Criterion          | Requirement                                                             |
+| ------------------ | ----------------------------------------------------------------------- |
+| Local execution    | Frontend, backend, and data layer run locally.                          |
+| Core flow          | At least one verification case can be created end-to-end.               |
+| Mock mode          | Demo works without real AI/OCR or fact-checking credentials.            |
+| Report clarity     | The audience can understand evidence, risk, and recommendation.         |
+| Human judgment     | The demo clearly states that the system does not decide absolute truth. |
+| No slides required | The MVP is the main presentation aid.                                   |
+
+### 19.4 Commercial Message
+
+IA Detector helps editorial teams reduce the time needed for initial verification while keeping final judgment in human hands.
+
+The commercial value is:
+
+1. Faster first-pass verification.
+2. More consistent review workflow.
+3. Better evidence organization.
+4. Lower risk of publishing unsupported or manipulated content.
+5. Clear audit trail for accountability.
+6. Local demo mode that works even without paid AI or fact-checking credentials.
+
+### 19.5 Expected Questions
+
+| Question                                          | Suggested Answer                                                                                                                   |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Does the system decide whether something is true? | No. It produces a verification analysis report and recommends an editorial action for human review.                                |
+| What happens if external providers fail?          | The system shows provider degradation, uses stale cache only when available, and recommends manual review when needed.             |
+| Can it work without paid AI services?             | Yes. The MVP supports deterministic mock mode for local demo and testing.                                                          |
+| How is user data protected?                       | Access is authenticated, ownership is enforced, tokens are handled securely, and raw provider data is not exposed to the frontend. |
+| Why is this useful for journalists?               | It reduces repeated manual searching and organizes evidence, risks, and audit trail in one workflow.                               |
