@@ -413,7 +413,6 @@ interface PreprocessedInput {
 ```ts
 interface ExtractedClaimResult {
   extractedClaim: string;
-  normalizedClaim: string;
   confidence: number;
   extractionMode: "mock" | "provider";
 }
@@ -1023,7 +1022,7 @@ src/backend/
 | Responsibility | Coordinates the complete verification analysis pipeline. |
 | Inputs | `CreateVerificationRequestDTO`, `currentUserId`, `traceId` |
 | Output | `VerificationAnalysisReportDTO` |
-| Collaborators | `InputHandlerStrategyFactory`, `ClaimExtractionService`, `FactCheckEvidenceService`, `RiskAnalysisService`, `EvidenceScoreService`, `RiskScoreService`, `SourceAgreementService`, `EditorialRecommendationService`, repositories |
+| Collaborators | `InputHandlerStrategyFactory`, `ClaimExtractionService`, `ClaimNormalizationService`, `FactCheckEvidenceService`, `RiskAnalysisService`, `EvidenceScoreService`, `RiskScoreService`, `SourceAgreementService`, `EditorialRecommendationService`, repositories |
 | Must Not | Call external providers directly. Access Prisma directly. Return raw provider JSON. Produce TRUE/FALSE labels. |
 | Errors | Throws typed application exceptions only. Unexpected errors are converted to `AppException` with `traceId`. |
 | Tests | Must test text, URL, image, provider failure, no evidence, high risk, unauthorized file, and persistence failure. |
@@ -1054,7 +1053,19 @@ After preprocessing, the backend analysis pipeline must use PreprocessedInput an
 | Must Not | Return multiple competing claims in the MVP. Return provider raw response. Decide truth/falsity. |
 | Failure Behavior | If claim cannot be extracted, case is stored as `FAILED`, audit event `VERIFICATION_FAILED` is written, and endpoint returns `422`. |
 
-### 5.6 Module Contract — `FactCheckEvidenceService`
+### 5.6 Module Contract — `ClaimNormalizationService`
+
+| Item | Contract |
+|---|---|
+| Path | `src/backend/application/claims/ClaimNormalizationService.ts` |
+| Responsibility | Normalizes the extracted claim into a stable query string for cache lookup and evidence search. |
+| Input | `ExtractedClaimResult.extractedClaim` |
+| Output | `normalizedClaim` |
+| Collaborators | None required for MVP. |
+| Must Not | Decide truth/falsity. Call external providers. Persist data directly. Change the meaning of the extracted claim. |
+| Failure Behavior | If the normalized claim is empty, case is stored as `FAILED`, audit event `VERIFICATION_FAILED` is written, and endpoint returns `422`. |
+
+### 5.7 Module Contract — `FactCheckEvidenceService`
 
 | Item | Contract |
 |---|---|
@@ -1062,11 +1073,11 @@ After preprocessing, the backend analysis pipeline must use PreprocessedInput an
 | Responsibility | Finds evidence related to the normalized claim. |
 | Input | `normalizedClaim` |
 | Output | `EvidenceSearchResult` |
-| Collaborators | `FactCheckCacheRepository`, `GoogleFactCheckClient`, `MockFactCheckClient`, `GoogleFactCheckAdapter`, `EvidenceRepository` |
-| Must Not | Expose provider API key. Return raw provider JSON. Treat empty evidence as false. |
+| Collaborators | `FactCheckCacheRepository`, `FactCheckProviderPort`, `EvidenceRepository` |
+| Must Not | Expose provider API key. Return raw provider JSON. Treat empty evidence as false. Depend directly on concrete provider clients. |
 | Failure Behavior | Provider failure returns `providerStatus=UNAVAILABLE` and either `cacheStatus=MISS` or `cacheStatus=STALE_HIT`, writes `EVIDENCE_SEARCH_FAILED`, and continues report generation. `RiskAnalysisService` is responsible for creating risk signal `PROVIDER_UNAVAILABLE`. |
 
-### 5.7 Module Contract — `RiskAnalysisService`
+### 5.8 Module Contract — `RiskAnalysisService`
 
 | Item | Contract |
 |---|---|
@@ -1077,7 +1088,7 @@ After preprocessing, the backend analysis pipeline must use PreprocessedInput an
 | Must Detect | `NO_RELEVANT_EVIDENCE`, `CONTRADICTORY_EVIDENCE`, `LOW_SOURCE_AGREEMENT`, `PROVIDER_UNAVAILABLE`, `OCR_UNCERTAINTY`, `UNKNOWN_SOURCE`, `EMOTIONAL_LANGUAGE`, `RECENT_BREAKING_CLAIM`, `SOURCE_CONTENT_UNAVAILABLE` |
 | Must Not | Produce recommendation directly. Decide truth/falsity. |
 
-### 5.8 Module Contract — Scoring Services
+### 5.9 Module Contract — Scoring Services
 
 | Service | Path | Responsibility |
 |---|---|---|
@@ -1092,7 +1103,7 @@ Implementation rule:
 All scoring and recommendation services must be deterministic and independently unit-testable.
 ```
 
-### 5.9 Module Contract — `AIAmbassador`
+### 5.10 Module Contract — `AIAmbassador`
 
 | Item | Contract |
 |---|---|
@@ -1104,7 +1115,7 @@ All scoring and recommendation services must be deterministic and independently 
 | Must Not | Leak provider-specific response format outside `application/ai`. |
 | Failure Behavior | Applies timeout, retry, adapter, and fallback behavior from integration contract. |
 
-### 5.10 Module Contract — `GlobalExceptionFilter`
+### 5.11 Module Contract — `GlobalExceptionFilter`
 
 | Item | Contract |
 |---|---|
@@ -1114,7 +1125,7 @@ All scoring and recommendation services must be deterministic and independently 
 | Output | `ErrorResponseDTO` with `traceId`, `statusCode`, `errorCode`, and safe message. |
 | Must Not | Return stack traces, secrets, raw provider errors, or database internals. |
 
-### 5.11 Repository Contracts
+### 5.12 Repository Contracts
 
 | Repository | Responsibility | Data Area |
 |---|---|---|
@@ -1688,7 +1699,7 @@ Unless a constraint is explicitly described as database-level, the MVP may enfor
 |---|---|
 | Purpose | Stores normalized evidence found for one verification case. |
 | Used By | `POST /api/verifications`, `GET /api/verifications/:caseId`. |
-| Main Columns | `id`, `case_id`, `title`, `source_name`, `source_url`, `publisher`, `summary`, `relevance_score`, `agreement`, `published_at`, `provider`, `created_at` |
+| Main Columns | `id`, `case_id`, `title`, `source_name`, `source_url`, `publisher`, `published_at`, `summary`, `relevance_score`, `agreement`, `provider`, `created_at` |
 | Constraints | `source_url` required. `relevance_score` must be 0–100. `agreement` defaults to `UNKNOWN`. |
 | Relationships | Many evidence rows belong to one verification case. |
 | Indexes | `case_id` for report loading. `(case_id, source_url)` unique to avoid duplicate evidence rows for the same case and source. `source_url` for source lookup. `provider` for provider diagnostics. `agreement` optional for scoring analysis. |
@@ -1894,9 +1905,9 @@ Only patterns directly used by the MVP are included.
 | Problem | Application services and frontend DTOs must not depend on provider response shape. |
 | Forces | Provider responses may change. Mock and live modes must produce the same internal model. |
 | Solution | Convert provider or mock responses into `EvidenceCandidate[]`. |
-| Participants | `GoogleFactCheckClient`, `GoogleFactCheckAdapter`, `MockFactCheckClient`, `FactCheckEvidenceService` |
-| Collaborations | `FactCheckEvidenceService` receives raw provider/mock output, passes it through adapter, and persists normalized evidence. |
-| Implementation Rules | Controllers and application services must not return or persist raw provider JSON as report data. |
+| Participants | `FactCheckProviderPort`, `GoogleFactCheckClient`, `GoogleFactCheckAdapter`, `MockFactCheckClient`, `FactCheckEvidenceService` |
+| Collaborations | `FactCheckEvidenceService` depends on `FactCheckProviderPort`. Infrastructure implementations call the provider or mock, then adapters normalize provider-specific output into `EvidenceCandidate[]`. The service persists only normalized evidence. |
+| Implementation Rules | Controllers and application services must not return or persist raw provider JSON as report data. Application services must not import concrete provider clients directly. |
 | Consequences | Internal evidence model remains stable even if provider changes. |
 | Code Location | `src/backend/infrastructure/integrations/factcheck/` |
 
@@ -2538,7 +2549,9 @@ caso2-ia-detector/
 │
 └── src/
     ├── backend/
+    │   └── .gitkeep
     └── frontend/
+        └── .gitkeep
 ```
 
 ### 16.2 Supporting Artifacts
@@ -2593,12 +2606,12 @@ The schema at prisma\schema.prisma is valid
 
 ### 16.6 Grep Checks
 
-These checks exclude `README.md` because this document intentionally mentions forbidden labels and deprecated terms to define what must not appear in product code, product UI, or supporting implementation artifacts.
+These checks exclude `README.md` and `.github/agents/` because both intentionally mention forbidden labels and deprecated terms to define what must not appear in product code, product UI, API responses, database states, or user-facing implementation artifacts.
 
 Run:
 
 ```powershell
-git grep -n "PASS\|NO_PASS\|HUMAN_REVIEW" -- ':!README.md'
+git grep -n "PASS\|NO_PASS\|HUMAN_REVIEW" -- ':!README.md' ':!.github/agents/*'
 ```
 
 Expected result:
@@ -2610,7 +2623,7 @@ No output.
 Run:
 
 ```powershell
-git grep -n "AI_DECISION_COMPLETED" -- ':!README.md'
+git grep -n "AI_DECISION_COMPLETED" -- ':!README.md' ':!.github/agents/*'
 ```
 
 Expected result:
@@ -2622,7 +2635,7 @@ No output.
 Run:
 
 ```powershell
-git grep -n "Pending\|pending\|goal-map\|Goal Map\|mvp-scope.md\|problem-statement.md\|frontend-design.md\|ux-testing-results.md" -- ':!README.md'
+git grep -n "Pending\|pending\|goal-map\|Goal Map\|mvp-scope.md\|problem-statement.md\|frontend-design.md\|ux-testing-results.md" -- ':!README.md' ':!.github/agents/*'
 ```
 
 Expected result:
@@ -2634,7 +2647,7 @@ No output.
 Run:
 
 ```powershell
-git grep -n "Stores metadata for images or screenshots. Stores metadata" -- ':!README.md'
+git grep -n "Stores metadata for images or screenshots. Stores metadata" -- ':!README.md' ':!.github/agents/*'
 ```
 
 Expected result:
