@@ -3,6 +3,7 @@ import {
   AuditEventType,
   EvidenceAgreement,
   InputType,
+  Prisma,
   RecommendedAction,
   RiskSeverity,
   RiskSignalType,
@@ -15,7 +16,17 @@ interface CreateProcessingCaseInput {
   userId: string;
   inputType: InputType;
   rawInput?: string;
+  uploadedFileId?: string;
   originalInputPreview: string;
+}
+
+interface CreateUploadedFileInput {
+  ownerUserId: string;
+  originalFileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  sha256Hash: string;
 }
 
 interface CompleteCaseInput {
@@ -54,7 +65,7 @@ interface CreateAuditLogInput {
   eventType: AuditEventType;
   message: string;
   traceId: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 }
 
 @Injectable()
@@ -67,8 +78,41 @@ export class VerificationRepository {
         userId: input.userId,
         inputType: input.inputType,
         rawInput: input.rawInput,
+        uploadedFileId: input.uploadedFileId,
         originalInputPreview: input.originalInputPreview,
         status: VerificationStatus.PROCESSING,
+      },
+    });
+  }
+
+  createUploadedFile(input: CreateUploadedFileInput) {
+    return this.prismaService.uploadedFile.create({
+      data: {
+        ownerUserId: input.ownerUserId,
+        originalFileName: input.originalFileName,
+        mimeType: input.mimeType,
+        sizeBytes: input.sizeBytes,
+        storagePath: input.storagePath,
+        sha256Hash: input.sha256Hash,
+      },
+    });
+  }
+
+  findUploadedFileByIdForUser(uploadedFileId: string, userId: string) {
+    return this.prismaService.uploadedFile.findFirst({
+      where: {
+        id: uploadedFileId,
+        ownerUserId: userId,
+        deletedAt: null,
+      },
+    });
+  }
+
+  findUploadedFileById(uploadedFileId: string) {
+    return this.prismaService.uploadedFile.findFirst({
+      where: {
+        id: uploadedFileId,
+        deletedAt: null,
       },
     });
   }
@@ -136,7 +180,8 @@ export class VerificationRepository {
       },
     });
   }
-    listHistoryByUserId(userId: string) {
+
+  listHistoryByUserId(userId: string) {
     return this.prismaService.verificationCase.findMany({
       where: {
         userId,
