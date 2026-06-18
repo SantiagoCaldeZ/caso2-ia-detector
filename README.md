@@ -2465,12 +2465,12 @@ Components:
 
 UX evidence is controlled: only final prototype exports and real Maze results are committed. No UX metrics are documented without participant results.
 
-| Artifact | Link | Purpose |
-|---|---|---|
-| Figma Prototype | [Open Figma prototype](https://www.figma.com/design/rZvKoMlj3IDMIymKdWbDBb/IA-Detector?node-id=11-37&t=DAxirgS7FYhOJTWN-1) | Interactive prototype for the MVP flow. |
-| Maze Test | [Open Maze test](https://t.maze.co/545947273) | Usability test for navigation and comprehension. |
-| Prototype Assets Folder | [Open prototype assets](docs/assets/prototype/) | Final exported screens are stored here when approved. |
-| UX Testing Assets Folder | [Open UX testing assets](docs/assets/ux-testing/) | Maze result evidence is stored here when participant results are available. |
+| Artifact                 | Link                                                                                                                    | Purpose                                                                     |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Figma Prototype          | [Open Figma prototype](https://www.figma.com/proto/mvwLNkVDtvMAkDZA6vkggb/IA-Detector?node-id=0-1&t=76UhFVuQWoHqdmfs-1) | Interactive prototype for the MVP flow.                                     |
+| Maze Test                | [Open Maze test](https://t.maze.co/510125135)                                                                           | Usability test for navigation and comprehension.                            |
+| Prototype Assets Folder  | [Open prototype assets](docs/assets/prototype/)                                                                         | Final exported screens are stored here when approved.                       |
+| UX Testing Assets Folder | [Open UX testing assets](docs/assets/ux-testing/)                                                                       | Maze result evidence is stored here when participant results are available. |
 
 ### 13.2 UX Language Rules
 
