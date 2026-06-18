@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   AuditEventType,
   EvidenceAgreement,
@@ -24,29 +29,18 @@ export class CreateVerificationCaseService {
     request: CreateVerificationRequestDTO,
     currentUser: AuthenticatedUserDTO,
   ): Promise<VerificationAnalysisReportDTO> {
-    if (request.inputType !== 'TEXT') {
-      throw new BadRequestException(
-        'Only TEXT verification is implemented in this MVP block.',
-      );
-    }
-
-    const text = request.text?.trim();
-
-    if (!text || text.length < 20) {
-      throw new BadRequestException(
-        'Text verification requires at least 20 characters.',
-      );
-    }
+    const normalizedInput =
+      await this.normalizeInputForMockFlow(request, currentUser);
 
     const traceId = randomUUID();
-    const originalInputPreview = this.buildPreview(text);
 
     const verificationCase =
       await this.verificationRepository.createProcessingCase({
         userId: currentUser.id,
-        inputType: InputType.TEXT,
-        rawInput: text,
-        originalInputPreview,
+        inputType: normalizedInput.inputType,
+        rawInput: normalizedInput.rawInput,
+        uploadedFileId: normalizedInput.uploadedFileId,
+        originalInputPreview: normalizedInput.originalInputPreview,
       });
 
     await this.verificationRepository.createAuditLog({
@@ -56,7 +50,7 @@ export class CreateVerificationCaseService {
       message: 'Verification case created.',
       traceId,
       metadata: {
-        inputType: 'TEXT',
+        inputType: normalizedInput.inputType,
       },
     });
 
@@ -64,11 +58,11 @@ export class CreateVerificationCaseService {
       caseId: verificationCase.id,
       userId: currentUser.id,
       eventType: AuditEventType.INPUT_PREPROCESSED,
-      message: 'Text input was preprocessed.',
+      message: `${normalizedInput.inputType} input was preprocessed in mock mode.`,
       traceId,
     });
 
-    const extractedClaim = this.extractMockClaim(text);
+    const extractedClaim = this.extractMockClaim(normalizedInput.contentForClaimExtraction);
 
     await this.verificationRepository.createAuditLog({
       caseId: verificationCase.id,
@@ -89,10 +83,14 @@ export class CreateVerificationCaseService {
       traceId,
     });
 
-    const scenario = this.detectScenario(text);
+    const scenario = this.detectScenario(normalizedInput.contentForClaimExtraction);
 
     const evidence = this.buildMockEvidence(verificationCase.id, scenario);
-    const riskSignals = this.buildMockRiskSignals(verificationCase.id, scenario);
+    const riskSignals = this.buildMockRiskSignals(
+      verificationCase.id,
+      scenario,
+      normalizedInput.inputType,
+    );
 
     await this.verificationRepository.createEvidenceMany(evidence);
     await this.verificationRepository.createRiskSignalMany(riskSignals);
@@ -106,6 +104,7 @@ export class CreateVerificationCaseService {
       metadata: {
         providerStatus: 'SUCCESS',
         cacheStatus: 'MISS',
+        mockInputType: normalizedInput.inputType,
       },
     });
 
@@ -188,6 +187,94 @@ export class CreateVerificationCaseService {
 
   private buildPreview(text: string): string {
     return text.length <= 120 ? text : `${text.slice(0, 117)}...`;
+  }
+
+  private async normalizeInputForMockFlow(
+    request: CreateVerificationRequestDTO,
+    currentUser: AuthenticatedUserDTO,
+  ): Promise<{
+    inputType: InputType;
+    rawInput?: string;
+    uploadedFileId?: string;
+    originalInputPreview: string;
+    contentForClaimExtraction: string;
+  }> {
+    if (request.inputType === 'TEXT') {
+      const text = request.text?.trim();
+
+      if (!text || text.length < 20) {
+        throw new BadRequestException(
+          'Text verification requires at least 20 characters.',
+        );
+      }
+
+      return {
+        inputType: InputType.TEXT,
+        rawInput: text,
+        originalInputPreview: this.buildPreview(text),
+        contentForClaimExtraction: text,
+      };
+    }
+
+    if (request.inputType === 'URL') {
+      const url = request.url?.trim();
+
+      if (!url) {
+        throw new BadRequestException('URL is required for URL verification.');
+      }
+
+      try {
+        // URL constructor acts as basic syntax validation for demo mode.
+        new URL(url);
+      } catch {
+        throw new BadRequestException('A valid URL is required.');
+      }
+
+      const simulatedContent = `Mock extracted content from ${url}. The page claims a relevant public statement and requires verification context.`;
+
+      return {
+        inputType: InputType.URL,
+        rawInput: url,
+        originalInputPreview: this.buildPreview(url),
+        contentForClaimExtraction: simulatedContent,
+      };
+    }
+
+    if (request.inputType === 'IMAGE') {
+      const uploadedFileId = request.uploadedFileId?.trim();
+
+      if (!uploadedFileId) {
+        throw new BadRequestException(
+          'uploadedFileId is required for IMAGE verification.',
+        );
+      }
+
+      const uploadedFile =
+        await this.verificationRepository.findUploadedFileById(uploadedFileId);
+
+      if (!uploadedFile) {
+        throw new NotFoundException('Uploaded image was not found.');
+      }
+
+      if (uploadedFile.ownerUserId !== currentUser.id) {
+        throw new ForbiddenException(
+          'You cannot verify a file that belongs to another user.',
+        );
+      }
+
+      const simulatedOcr = `Mock OCR extracted text from image ${uploadedFile.originalFileName}. This screenshot references a public claim and needs editorial review.`;
+
+      return {
+        inputType: InputType.IMAGE,
+        uploadedFileId,
+        originalInputPreview: this.buildPreview(
+          `Image: ${uploadedFile.originalFileName}`,
+        ),
+        contentForClaimExtraction: simulatedOcr,
+      };
+    }
+
+    throw new BadRequestException('Invalid input type.');
   }
 
   private extractMockClaim(text: string): string {
@@ -352,6 +439,7 @@ export class CreateVerificationCaseService {
   private buildMockRiskSignals(
     caseId: string,
     scenario: 'READY' | 'DO_NOT_PUBLISH' | 'NEEDS_REVIEW',
+    inputType: InputType,
   ) {
     if (scenario === 'DO_NOT_PUBLISH') {
       return [
@@ -376,10 +464,15 @@ export class CreateVerificationCaseService {
       return [
         {
           caseId,
-          type: RiskSignalType.OCR_UNCERTAINTY,
+          type:
+            inputType === InputType.URL
+              ? RiskSignalType.SOURCE_CONTENT_UNAVAILABLE
+              : RiskSignalType.OCR_UNCERTAINTY,
           severity: RiskSeverity.MEDIUM,
           description:
-            'The content may require manual validation due to partial extraction context.',
+            inputType === InputType.URL
+              ? 'The submitted URL could not be fully read in mock extraction mode. Manual review is recommended.'
+              : 'The content may require manual validation due to partial extraction context.',
         },
       ];
     }

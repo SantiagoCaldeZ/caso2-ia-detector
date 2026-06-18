@@ -1,7 +1,7 @@
 ---
 name: business-rules-contract-agent
 description: "Valida que las reglas de negocio y contratos de API implementados coincidan con los definidos en el README."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file']
+tools: [read, search, edit]
 ---
 
 # Rol

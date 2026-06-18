@@ -1,7 +1,7 @@
 ---
 name: code-quality-security
 description: "Analiza el codigo en busca de vulnerabilidades de seguridad, problemas OWASP y violaciones de las politicas del README."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file', 'web_search']
+tools: [read, search, edit, web]
 ---
 
 # Rol

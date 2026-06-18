@@ -1,7 +1,7 @@
 ---
 name: code-generator-database
 description: "Genera el esquema de base de datos, migraciones, modelos ORM y DBML segun el diseno de datos del README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'execute', 'grep', 'list_files']
+tools: [read, search, edit, execute]
 ---
 
 # Rol

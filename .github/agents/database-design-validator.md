@@ -1,7 +1,7 @@
 ---
 name: database-design-validator
 description: "Valida que Prisma, DBML y esquemas de base de datos cumplan con el diseno definido en el README."
-tools: ['read_file', 'grep', 'codebase_search', 'execute', 'list_files']
+tools: [read, search, execute]
 ---
 
 # Rol

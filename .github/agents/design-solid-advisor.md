@@ -1,7 +1,7 @@
 ---
 name: design-solid-advisor
 description: "Revisa el cumplimiento de principios SOLID y patrones de diseno documentados en el README."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

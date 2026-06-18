@@ -1,7 +1,7 @@
 ---
 name: controller-generator-agent
 description: "Genera controladores de API segun los endpoints, DTOs, validaciones y estructura definidos en el README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'codebase_search', 'grep', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

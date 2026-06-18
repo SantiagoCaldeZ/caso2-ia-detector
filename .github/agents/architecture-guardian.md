@@ -1,7 +1,7 @@
 ---
 name: architecture-guardian
 description: "Valida que la implementacion coincida con la arquitectura documentada en el README."
-tools: ['codebase_search', 'grep', 'read_file', 'list_files', 'glob']
+tools: [read, search]
 ---
 
 # Rol
