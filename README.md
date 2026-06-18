@@ -759,23 +759,23 @@ This example is internally consistent with the recommendation rules because it c
 
 ### 4.1 Frontend Technology Contract
 
-| Concern | Decision | Version |
-|---|---|---|
-| Runtime | Node.js | `22.x LTS` |
-| Framework | React | `19.x` |
-| Build tool | Vite | `7.x` |
-| Language | TypeScript | `5.x` |
-| Styling | Tailwind CSS | `4.x` |
-| UI components | shadcn/ui | Package version defined in `package.json` when implementation starts. |
-| Routing | React Router | `7.x` |
-| API client | Axios | `1.x` |
-| Server state | TanStack Query | `5.x` |
-| Local UI state | Zustand | `5.x` |
-| Forms | React Hook Form | `7.x` |
-| Validation | Zod | `4.x` |
-| Unit/component tests | Vitest + React Testing Library | Vitest `3.x`, RTL `16.x` |
-| E2E tests | Playwright | `1.x` |
-| Hosting target | Vercel | Managed platform, no application package version. |
+| Concern              | Decision                       | Version                                                                              |
+| -------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
+| Runtime              | Node.js                        | `22.x LTS`                                                                           |
+| Framework            | React                          | `19.x`                                                                               |
+| Build tool           | Vite                           | `7.x`                                                                                |
+| Language             | TypeScript                     | `5.x`                                                                                |
+| Styling              | Tailwind CSS                   | `4.x`                                                                                |
+| UI components        | shadcn/ui                      | Package version to be defined in `package.json` when frontend implementation starts. |
+| Routing              | React Router                   | `7.x`                                                                                |
+| API client           | Axios                          | `1.x`                                                                                |
+| Server state         | TanStack Query                 | `5.x`                                                                                |
+| Local UI state       | Zustand                        | `5.x`                                                                                |
+| Forms                | React Hook Form                | `7.x`                                                                                |
+| Validation           | Zod                            | `4.x`                                                                                |
+| Unit/component tests | Vitest + React Testing Library | Vitest `3.x`, RTL `16.x`                                                             |
+| E2E tests            | Playwright                     | `1.x`                                                                                |
+| Hosting target       | Vercel                         | Managed platform, no application package version.                                    |
 
 Implementation rule:
 
@@ -1025,19 +1025,21 @@ Performance optimizations must not hide verification context. Evidence, risk sig
 
 ### 5.1 Backend Technology Contract
 
-| Concern | Decision | Version |
-|---|---|---|
-| Runtime | Node.js | `22.x LTS` |
-| Framework | NestJS | `11.x` |
-| Language | TypeScript | `5.x` |
-| ORM | Prisma | `7.x` |
-| Database | PostgreSQL through Supabase | PostgreSQL `15+` |
-| File storage | Supabase Storage | Managed platform, no application package version. |
-| Authentication | JWT access token + httpOnly refresh token | `@nestjs/jwt` compatible |
-| Password hashing | Argon2id using `argon2` package | Package version defined in `package.json` when implementation starts. |
-| API documentation | OpenAPI / Swagger | Nest Swagger-compatible |
-| Testing | Jest + Supertest | Jest `30.x`, Supertest `7.x` |
-| Backend hosting target | Render | Managed platform, no application package version. |
+| Concern                   | Decision                                                                       | Version                                           |
+| ------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Runtime                   | Node.js                                                                        | `22.x LTS`                                        |
+| Framework                 | NestJS                                                                         | `^11.0.0`                                         |
+| Language                  | TypeScript                                                                     | `^5.0.0`                                          |
+| ORM                       | Prisma                                                                         | `^7.8.0`                                          |
+| Prisma PostgreSQL adapter | `@prisma/adapter-pg`                                                           | `^7.8.0`                                          |
+| Database                  | Local PostgreSQL for MVP; Supabase-compatible PostgreSQL for future deployment | PostgreSQL `15+`                                  |
+| PostgreSQL driver         | `pg`                                                                           | `^8.21.0`                                         |
+| Authentication            | JWT access token                                                               | `@nestjs/jwt ^11.0.2`                             |
+| Password hashing          | Argon2id using `argon2` package                                                | `^0.44.0`                                         |
+| Environment variables     | `dotenv`                                                                       | `^17.4.2`                                         |
+| API documentation         | OpenAPI / Swagger                                                              | Future scope for MVP implementation               |
+| Testing                   | Jest + Supertest                                                               | Future scope for MVP implementation               |
+| Backend hosting target    | Render                                                                         | Managed platform, no application package version. |
 
 Implementation rule:
 
