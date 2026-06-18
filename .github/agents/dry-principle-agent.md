@@ -1,7 +1,7 @@
 ---
 name: dry-principle-agent
 description: "Detecta código duplicado y sugiere abstracciones reutilizables. Se guía por la estructura y patrones del README."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

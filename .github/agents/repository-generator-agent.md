@@ -1,7 +1,7 @@
 ---
 name: repository-generator-agent
 description: "Genera repositorios de acceso a datos segun el modelo de datos, Prisma y la estructura definida en el README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'codebase_search', 'grep', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

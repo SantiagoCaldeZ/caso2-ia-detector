@@ -1,7 +1,7 @@
 ---
 name: testing-engineer
 description: "Genera, ejecuta y analiza pruebas unitarias, de integracion y E2E segun los requisitos de calidad del README."
-tools: ['codebase_search', 'read_file', 'edit_file', 'execute', 'grep', 'list_files']
+tools: [read, search, edit, execute]
 ---
 
 # Rol

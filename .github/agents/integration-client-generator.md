@@ -1,7 +1,7 @@
 ---
 name: integration-client-generator
 description: "Genera clientes, adapters, ambassadors y mocks para integraciones externas segun el README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'codebase_search', 'grep', 'web_search']
+tools: [read, search, edit, web]
 ---
 
 # Rol

@@ -1,7 +1,7 @@
 ---
 name: state-management-agent
 description: "Revisa el manejo de estado global y local segun la estrategia definida en el README."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

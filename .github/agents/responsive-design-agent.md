@@ -1,7 +1,7 @@
 ---
 name: responsive-design-agent
 description: "Valida que la interfaz sea responsiva segun criterios del README y buenas practicas frontend."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

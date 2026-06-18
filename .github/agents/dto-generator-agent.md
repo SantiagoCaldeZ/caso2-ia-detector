@@ -1,7 +1,7 @@
 ---
 name: dto-generator-agent
 description: "Genera DTOs con validaciones segun los contratos de API definidos en el README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'codebase_search', 'grep']
+tools: [read, search, edit]
 ---
 
 # Rol

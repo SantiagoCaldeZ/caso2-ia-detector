@@ -1,7 +1,7 @@
 ---
 name: service-generator-agent
 description: "Genera servicios de aplicacion que implementan casos de uso y reglas de negocio del README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'codebase_search', 'grep', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

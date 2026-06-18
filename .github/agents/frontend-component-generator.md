@@ -1,7 +1,7 @@
 ---
 name: frontend-component-generator
 description: "Genera componentes de interfaz de usuario, paginas y componentes reutilizables siguiendo las convenciones del README."
-tools: ['read_file', 'write_to_file', 'edit_file', 'codebase_search', 'grep', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol

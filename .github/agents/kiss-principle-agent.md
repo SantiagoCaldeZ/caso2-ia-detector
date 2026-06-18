@@ -1,7 +1,7 @@
 ---
 name: kiss-principle-agent
 description: "Detecta complejidad innecesaria, sobreingenieria o codigo demasiado enrevesado, respetando el README."
-tools: ['codebase_search', 'grep', 'read_file', 'edit_file', 'list_files']
+tools: [read, search, edit]
 ---
 
 # Rol
