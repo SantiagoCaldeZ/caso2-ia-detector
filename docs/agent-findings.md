@@ -1,415 +1,266 @@
-# Hallazgos y Correcciones Aplicadas por los Agentes
+# AI-Assisted Review Findings — IA Detector
 
-> Este archivo registra hallazgos reales de revisiones de agentes. Cada entrada incluye archivo:línea, severidad, riesgo, corrección sugerida y decisión del equipo.
+This document records the relevant findings produced during AI-assisted review of IA Detector. It is not a replacement for the README. The README remains the official design and implementation contract.
 
-## Registro de cambios
+The purpose of this document is to show how AI-assisted agents were used to improve the project in concrete, traceable ways: detecting inconsistencies, strengthening design decisions, aligning implementation details, and improving readiness for review.
 
 ---
 
-### 2026-06-18 - code-quality-security - SEC-001
+## 1. Review Scope
 
-**Descripción del hallazgo**:
-Validación de MIME type en el upload de imágenes usa `file.mimetype`, que proviene del header `Content-Type` enviado por el cliente en el form-data multipart. Un atacante puede enviar `Content-Type: image/jpeg` con contenido arbitrario (SVG con XSS, HTML, ejecutable) y pasar la validación sin detección.
+The AI-assisted review focused on the following areas:
 
-**Ubicación(es)**:
-`src/backend/api/controllers/UploadController.ts:42`
+| Area                       | Review Goal                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Product contract           | Confirm that the system is described as a verification support tool, not as an absolute truth detector.            |
+| README quality             | Strengthen the README as a design and implementation contract for developers.                                      |
+| Backend architecture       | Check whether controller, service, repository, DTO, guard, and persistence responsibilities are clearly separated. |
+| Frontend/backend alignment | Confirm that frontend configuration matches the backend API contract.                                              |
+| Local execution            | Confirm that local development uses the same database and execution model described in the README.                 |
+| Verification workflow      | Confirm that TEXT, URL, and IMAGE verification paths behave consistently with the MVP contract.                    |
+| Auditability               | Confirm that verification cases generate traceable audit events.                                                   |
+| Review readiness           | Identify issues that could confuse another developer or reviewer.                                                  |
 
-**Severidad**: Alta (producción) / Media (MVP mock sin almacenamiento real que sirva archivos)
+---
 
-**Corrección sugerida**:
-Validar magic bytes del `file.buffer` con `file-type`:
+## 2. Finding: README Must Be a Design Contract, Not a Status Report
+
+### Observation
+
+Earlier versions of the documentation mixed design decisions with implementation status. This created a risk that a developer could read the README as a progress log instead of as the authoritative construction contract.
+
+### Decision
+
+The README was reframed as a **Software Design and Implementation Contract**.
+
+### Result
+
+The README now clearly states that it defines:
+
+* what the system must do;
+* which frontend pages, backend modules, endpoints, DTOs, states, and records must exist;
+* how the frontend, backend, database, storage, and integrations must communicate;
+* which local tools are required;
+* which design rules are mandatory;
+* which behaviors are accepted or rejected by the MVP.
+
+### Impact
+
+This makes the document more useful for a developer who did not participate in the original design discussions.
+
+---
+
+## 3. Finding: IA Detector Must Not Return Absolute Truth Labels
+
+### Observation
+
+A previous risk in the design was using labels that sounded like the system was deciding truth directly, such as `PASS`, `NO_PASS`, or `HUMAN_REVIEW`.
+
+### Decision
+
+The product language was corrected to avoid absolute truth decisions.
+
+### Result
+
+The accepted editorial recommendation values are:
+
+| Internal Value               | Meaning                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `READY_FOR_EDITORIAL_REVIEW` | Evidence and risk indicators allow the case to move to editorial review. |
+| `DO_NOT_PUBLISH_YET`         | The case has high risk, contradiction, or insufficient support.          |
+| `NEEDS_MANUAL_REVIEW`        | The case is ambiguous, partial, degraded, or requires human judgment.    |
+
+### Impact
+
+This keeps the system aligned with the product goal: supporting editorial verification instead of replacing journalistic judgment.
+
+---
+
+## 4. Finding: Frontend API Configuration Needed to Match the README
+
+### Observation
+
+The README defines `VITE_API_BASE_URL` as the frontend variable used to call the backend API.
+
+The frontend configuration was reviewed to ensure that it uses the same variable name.
+
+### Decision
+
+Frontend configuration was aligned with the README contract.
+
+### Result
+
+The frontend now reads:
+
 ```ts
-import { fileTypeFromBuffer } from 'file-type';
-const detected = await fileTypeFromBuffer(file.buffer);
-if (!detected || !ALLOWED_MIME_TYPES.has(detected.mime)) {
-  throw new UnsupportedMediaTypeException('Only JPEG, PNG, and WEBP files are allowed.');
-}
+import.meta.env.VITE_API_BASE_URL
 ```
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+and falls back to:
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Elimina bypass de validación MIME via header cliente.
-
----
-
-### 2026-06-18 - code-quality-security - SEC-002
-
-**Descripción del hallazgo**:
-La rama `else` del bloque `catch` en el bootstrap de `AuthProvider` ejecuta exactamente la misma acción que la rama `if`: `applySession(null, null)`. En consecuencia, errores 500, timeouts de red u otros fallos del backend destruyen la sesión silenciosamente como si el token hubiera expirado.
-
-**Ubicación(es)**:
-`src/frontend/app/providers/AuthProvider.tsx:79-85`
-
-**Severidad**: Baja (MVP), Media (producción)
-
-**Corrección sugerida**:
-Eliminar el `if/else` y dejar una sola llamada `applySession(null, null)`, o diferenciar la rama `else` para no destruir sesión en errores de red inesperados.
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Elimina código muerto y previene logout silencioso ante errores no relacionados con autenticación.
-
----
-
-### 2026-06-18 - code-quality-security - SEC-003
-
-**Descripción del hallazgo**:
-`traceId` se concatena directamente en el mensaje de error visible al usuario en la UI en múltiples lugares. Facilita la correlación de requests propias con logs del backend.
-
-**Ubicación(es)**:
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:57-58`
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:65-66`
-
-**Severidad**: Baja
-
-**Corrección sugerida**:
-Mostrar `traceId` en un tooltip o sección colapsable de soporte, no inline en el mensaje de error visible al usuario.
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Reduce superficie de información expuesta al usuario final.
-
----
-
-### 2026-06-18 - code-quality-security - SEC-004
-
-**Descripción del hallazgo**:
-`void runImageFlow()` en el handler del form ejecuta una función async sin catch para errores fuera del ciclo `onError` de la mutation. Si ocurre una excepción inesperada dentro de `runImageFlow`, la promesa se descarta silenciosamente sin feedback al usuario.
-
-**Ubicación(es)**:
-`src/frontend/features/verification/pages/VerificationHubPage.tsx:137`
-
-**Severidad**: Baja
-
-**Corrección sugerida**:
 ```ts
-runImageFlow().catch((error) => {
-  const parsed = toApiError(error);
-  setApiError(parsed.message);
-});
+http://localhost:3000/api
 ```
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+### Validation
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
+The project search confirmed that `VITE_BACKEND_URL` is no longer used and that `VITE_API_BASE_URL` appears in the README and frontend configuration.
 
-**Impacto**:
-Evita que el usuario quede con el botón girando indefinidamente sin feedback.
+### Impact
+
+A developer can now follow the README without needing undocumented knowledge about frontend environment variables.
 
 ---
 
-### 2026-06-18 - kiss-principle-agent - KISS-001
+## 5. Finding: Windows Launcher Needed to Match the Docker/PostgreSQL Contract
 
-**Descripción del hallazgo**:
-Ambas ramas del `if/else` en el catch del bootstrap de `AuthProvider` son idénticas. El `if` documenta una intención que nunca se materializó en comportamiento distinto. La rama `else` es código muerto que puede inducir a error a futuros desarrolladores.
+### Observation
 
-**Ubicación(es)**:
-`src/frontend/app/providers/AuthProvider.tsx:82-87`
+The local launcher previously used a Prisma local database command that did not match the README's Docker/PostgreSQL development contract.
 
-**Severidad**: Baja
+### Decision
 
-**Corrección sugerida**:
-Eliminar el `if/else` completo:
-```ts
-if (isMounted) {
-  applySession(null, null);
-}
+The launcher was updated to use the documented local architecture:
+
+```text
+Frontend Vite/React
+        ↓
+Backend NestJS
+        ↓
+PostgreSQL in Docker
 ```
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+### Result
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
+The launcher now performs the expected local startup sequence:
 
-**Impacto**:
-Simplifica el bloque catch y elimina dead code.
+1. Install or update npm dependencies.
+2. Start or create the `ia-detector-postgres` Docker container.
+3. Generate Prisma Client.
+4. Apply the Prisma schema to PostgreSQL.
+5. Start backend and frontend development servers.
 
----
+### Validation
 
-### 2026-06-18 - kiss-principle-agent - KISS-002
+The launcher was executed successfully and Prisma connected to:
 
-**Descripción del hallazgo**:
-La expresión ternaria de formateo de error está duplicada literalmente en los dos `onError` handlers consecutivos de `VerificationHubPage`. Si la convención de formato cambia, hay que actualizar ambos sitios.
-
-**Ubicación(es)**:
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:57-58`
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:65-66`
-
-**Severidad**: Baja
-
-**Corrección sugerida**:
-```ts
-const formatMutationError = (parsed: ReturnType<typeof toApiError>) =>
-  parsed.traceId ? `${parsed.message} (traceId: ${parsed.traceId})` : parsed.message;
+```text
+PostgreSQL database "ia_detector", schema "public" at "localhost:5432"
 ```
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+### Impact
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Centraliza el formato de error dentro del componente.
+The launcher now supports the same local execution model described in the README.
 
 ---
 
-### 2026-06-18 - state-management-agent - SM-002
+## 6. Finding: Backend and Frontend MVP Flow Is Demonstrable
 
-**Descripción del hallazgo**:
-`accessToken` está expuesto en `AuthContextValue` y en el value del `useMemo`. Ningún consumidor actual lo lee directamente del contexto. Exponerlo amplía la superficie XSS y lo hace visible desde DevTools y logs accidentales.
+### Observation
 
-**Ubicación(es)**:
-- `src/frontend/app/providers/AuthProvider.tsx:23`
-- `src/frontend/app/providers/AuthProvider.tsx:105`
+The project was reviewed after the frontend and backend were connected locally.
 
-**Severidad**: Media
+### Validation Results
 
-**Corrección sugerida**:
-Eliminar `accessToken` de `AuthContextValue` y del value del contexto. `isAuthenticated` cubre todas las necesidades actuales de los consumidores.
+The following flows were validated manually:
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+| Flow                 | Result                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| Backend health check | Returns `status=ok` and `database=ok`.                                                              |
+| Frontend startup     | Vite serves the app at `http://localhost:5173`.                                                     |
+| Backend startup      | NestJS serves the API at `http://localhost:3000/api`.                                               |
+| TEXT verification    | Creates a completed verification report.                                                            |
+| URL verification     | Creates a completed verification report using deterministic/mock behavior.                          |
+| IMAGE verification   | Creates a completed verification report with manual review recommendation and OCR uncertainty risk. |
+| Verification history | Lists created cases for the current user.                                                           |
+| Case detail          | Displays extracted claim, recommendation, scores, evidence, risk signals, and audit trail.          |
+| Audit trail          | Shows events for the verification workflow.                                                         |
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
+### Impact
 
-**Impacto**:
-Reduce superficie de exposición del token en el árbol de React.
-
----
-
-### 2026-06-18 - state-management-agent - SM-003
-
-**Descripción del hallazgo**:
-No existe interceptor de respuesta en `httpClient` para renovar el token automáticamente al recibir 401 durante una sesión activa. El bootstrap cubre recarga de página pero no expiración mid-session. La regla del proyecto requiere llamar `POST /api/auth/refresh` ante expiración del access token.
-
-**Ubicación(es)**:
-`src/frontend/shared/api/httpClient.ts:16`
-
-**Severidad**: Alta
-
-**Corrección sugerida**:
-Agregar `httpClient.interceptors.response.use` que ante 401 llame `refreshSession()`, actualice el token y reintente la petición original, con guardia para no reintentar el endpoint `/auth/refresh` mismo.
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Cumple regla del proyecto y evita sesiones rotas silenciosamente tras expiración del token.
+The project can now be demonstrated through the UI, not only through backend endpoints.
 
 ---
 
-### 2026-06-18 - state-management-agent - SM-004
+## 7. Finding: Verification Reports Need Traceable Audit Events
 
-**Descripción del hallazgo**:
-`uploadedImageId` y `selectedImage` no se limpian al cambiar de modo de entrada (`inputType`). Si el usuario sube una imagen, cambia a TEXT o URL, y vuelve a IMAGE sin reseleccionar archivo, el `uploadedImageId` previo persiste y el envío usa silenciosamente el archivo anterior.
+### Observation
 
-**Ubicación(es)**:
-`src/frontend/features/verification/pages/VerificationHubPage.tsx:155`
+The README requires verification cases to produce a traceable audit trail.
 
-**Severidad**: Baja
+### Decision
 
-**Corrección sugerida**:
-```ts
-onClick={() => {
-  setInputType(mode.value);
-  setSelectedImage(null);
-  setUploadedImageId(null);
-}}
-```
+Audit events must be visible in the case detail view and must represent meaningful workflow steps.
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+### Result
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
+The reviewed flow displays audit events such as:
 
-**Impacto**:
-Previene envío silencioso de archivo anterior al cambiar de modo.
+* `VERIFICATION_CREATED`
+* `INPUT_PREPROCESSED`
+* `CLAIM_EXTRACTED`
+* `EVIDENCE_SEARCH_STARTED`
+* `EVIDENCE_SEARCH_COMPLETED`
+* `RISK_ANALYSIS_COMPLETED`
+* `ANALYSIS_REPORT_GENERATED`
+
+### Impact
+
+The system supports reviewability and traceability, which are important for an editorial verification product.
 
 ---
 
-### 2026-06-18 - dry-principle-agent - DRY-002
+## 8. Finding: Layer Responsibilities Must Stay Explicit
 
-**Descripción del hallazgo**:
-La expresión ternaria de formateo de error con `traceId` está duplicada en 6 instancias a través de 5 archivos. La función `getApiErrorMessage` en `apiError.ts` ya existe pero no incluye `traceId`, por lo que nunca se usa.
+### Observation
 
-**Ubicación(es)**:
-- `src/frontend/features/verification/pages/VerificationResultPage.tsx:36-40`
-- `src/frontend/features/history/pages/VerificationCaseDetailPage.tsx:35-39`
-- `src/frontend/features/auth/pages/LoginPage.tsx:49-50`
-- `src/frontend/features/auth/pages/RegisterPage.tsx:49-50`
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:57-58`
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:66-67`
+For the project to be maintainable, responsibilities must not be mixed across layers.
 
-**Severidad**: Baja
+### Decision
 
-**Corrección sugerida**:
-Ampliar `getApiErrorMessage` en `src/frontend/shared/errors/apiError.ts` para aceptar `ApiError` tipado e incluir `traceId`:
-```ts
-export function formatApiErrorMessage(error: ApiError): string {
-  return error.traceId
-    ? `${error.message} (traceId: ${error.traceId})`
-    : error.message;
-}
-```
+The README defines explicit responsibility rules for:
 
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
+| Layer              | Main Responsibility                                     |
+| ------------------ | ------------------------------------------------------- |
+| Controller         | HTTP routing, guards, DTO input/output.                 |
+| Guard              | Authentication and authorization.                       |
+| Service            | Business workflow and use-case orchestration.           |
+| Repository         | Prisma persistence and database-specific queries.       |
+| DTO                | API input/output shape.                                 |
+| PrismaService      | Database client configuration and connection lifecycle. |
+| Integration client | External provider communication.                        |
+| Adapter            | Provider response normalization.                        |
 
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
+### Impact
 
-**Impacto**:
-Centraliza formato de error. Cambio en 1 lugar impacta los 6 usos.
+This gives developers a clear implementation boundary and reduces the risk of putting business rules in controllers or Prisma calls directly in API handlers.
 
 ---
 
-### 2026-06-18 - frontend-component-generator - FC-002
+## 9. Remaining Review Notes
 
-**Descripción del hallazgo**:
-`item.status` se renderiza como valor de enum crudo (`COMPLETED`, `FAILED`, `PROCESSING`) directamente en la UI. Las reglas del proyecto prohíben exponer valores de enum crudos al usuario. El patrón correcto (`recommendationLabel`) ya existe en `labels.ts`.
+The project is strong enough to demonstrate the MVP flow, but the following items should remain visible during review as intentional design constraints:
 
-**Ubicación(es)**:
-- `src/frontend/features/history/pages/VerificationHistoryPage.tsx:64`
-- `src/frontend/features/verification/pages/VerificationHubPage.tsx:232`
-
-**Severidad**: Media (viola regla del proyecto)
-
-**Corrección sugerida**:
-Agregar en `src/frontend/shared/components/report/labels.ts`:
-```ts
-export const statusLabel: Record<'PROCESSING' | 'COMPLETED' | 'FAILED', string> = {
-  PROCESSING: 'Processing',
-  COMPLETED: 'Completed',
-  FAILED: 'Failed',
-};
-```
-Y usar `statusLabel[item.status]` en lugar de `item.status`.
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Cumple regla del proyecto y permite internacionalización futura.
+| Note                                                    | Explanation                                                          |
+| ------------------------------------------------------- | -------------------------------------------------------------------- |
+| Mock behavior is intentional                            | The MVP can run without live AI/OCR/fact-check provider credentials. |
+| Reports are recommendations, not truth verdicts         | The system supports human editorial review.                          |
+| Image verification uses deterministic OCR-like behavior | This is acceptable for the MVP demonstration contract.               |
+| URL verification uses deterministic/mock extraction     | This keeps the demo stable and reproducible.                         |
+| The README is authoritative                             | If code and README diverge, the team must update both deliberately.  |
 
 ---
 
-### 2026-06-18 - frontend-component-generator - FC-003
+## 10. Summary
 
-**Descripción del hallazgo**:
-`VerificationResultPage` y `VerificationCaseDetailPage` comparten el mismo `queryKey` base para el mismo recurso (`getVerificationById`) pero usan keys distintas (`'verification-case'` vs `'verification-history-case'`). TanStack Query mantiene dos entradas de caché independientes para el mismo dato, causando doble fetch innecesario y desincronización ante invalidaciones.
+AI-assisted review helped improve IA Detector by:
 
-**Ubicación(es)**:
-- `src/frontend/features/verification/pages/VerificationResultPage.tsx:17`
-- `src/frontend/features/history/pages/VerificationCaseDetailPage.tsx:15`
+1. Strengthening the README as a design and implementation contract.
+2. Removing product language that implied absolute truth decisions.
+3. Aligning frontend environment configuration with the README.
+4. Aligning the Windows launcher with Docker/PostgreSQL.
+5. Validating the local MVP flow through backend, frontend, database, history, details, and audit trail.
+6. Reinforcing layer responsibility rules.
+7. Making the project easier for another developer to understand, run, and defend.
 
-**Severidad**: Media
-
-**Corrección sugerida**:
-Unificar ambas en `['verification-case', caseId]`.
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Elimina doble fetch y unifica la caché del mismo recurso.
-
----
-
-### 2026-06-18 - frontend-component-generator - FC-004
-
-**Descripción del hallazgo**:
-`getApiErrorMessage` en `apiError.ts` no incluye `traceId` y nunca se importa en ningún archivo del frontend (dead code). Coexiste con el patrón inline que sí incluye `traceId`, generando confusión sobre cuál es el helper canónico.
-
-**Ubicación(es)**:
-`src/frontend/shared/errors/apiError.ts:10`
-
-**Severidad**: Baja
-
-**Corrección sugerida**:
-Eliminar `getApiErrorMessage` o convertirla en el helper unificado del hallazgo DRY-002.
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Pendiente de decisión del equipo.
-
-**Impacto**:
-Elimina dead code y clarifica el helper canónico de formateo de errores.
-
----
-
-**Severidad**: Crítica / Alta / Media / Baja
-
-**Corrección sugerida**:
-(Qué propuso el agente, con código si aplica)
-
-**Decisión del equipo**:
-- [ ] Aceptada
-- [ ] Rechazada (motivo: )
-- [ ] Modificada (explicar)
-
-**Corrección aplicada** (si aplica):
-- Enlace al commit o diff.
-- Explicación de cómo se implementó.
-
-**Impacto**:
-(Qué se mejoró o resolvió)
-
----
+These findings support the final project goal: a robust, reviewable MVP design for an editorial verification workflow.
