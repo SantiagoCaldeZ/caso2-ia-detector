@@ -1,3 +1,3 @@
 export const env = {
-  backendUrl: import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000/api',
+  backendUrl: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api',
 };
