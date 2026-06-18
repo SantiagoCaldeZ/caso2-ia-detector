@@ -1,4 +1,4 @@
-# IA Detector — Software Design and Implementation Contract
+﻿# IA Detector — Software Design and Implementation Contract
 
 IA Detector is a web application for journalists and editorial teams who need to review suspicious digital content before publication.
 
@@ -338,15 +338,16 @@ Example-file rule:
 | Script | Command | Purpose |
 |---|---|---|
 | `dev:backend` | `ts-node-dev --respawn --transpile-only --project tsconfig.backend.json src/backend/main.ts` | Starts the NestJS backend in watch mode. |
-| `dev:frontend` | `vite --host 0.0.0.0 --port 5173` | Starts the Vite frontend development server. |
+| `dev:frontend` | `vite` | Starts the Vite frontend development server. |
+| `build:frontend` | `vite build` | Builds the frontend production bundle. |
+| `preview:frontend` | `vite preview` | Serves the built frontend locally for preview. |
+| `typecheck:frontend` | `tsc --project tsconfig.frontend.json --noEmit` | Runs TypeScript validation for the frontend. |
+| `test:frontend` | `vitest run` | Runs frontend unit/component tests. |
 | `db:generate` | `prisma generate` | Generates Prisma Client from `prisma/schema.prisma`. |
 | `db:push` | `prisma db push` | Pushes the Prisma schema to the configured PostgreSQL database. |
-| `db:migrate` | `prisma migrate dev` | Creates and applies local migrations when migration-based workflow is used. |
-| `db:seed` | Seed command defined in `package.json` | Creates deterministic demo data required for local demos and repeatable QA scenarios. |
 | `prisma:format` | `prisma format` | Formats Prisma schema. |
 | `prisma:validate` | `prisma validate` | Validates Prisma schema and Prisma config. |
 | `validate` | `prisma format && prisma validate` | Runs Prisma format and validation together. |
-| `test` | Test command defined in `package.json` | Runs unit, integration, and contract tests required by the implemented MVP modules. |
 
 Script rule:
 
@@ -1275,7 +1276,7 @@ This example is internally consistent with the recommendation rules because it c
 | -------------------- | ------------------------------ | ------------------------------------------------------------------------------------ |
 | Runtime              | Node.js                        | `22.x LTS`                                                                           |
 | Framework            | React                          | `19.x`                                                                               |
-| Build tool           | Vite                           | `7.x`                                                                                |
+| Build tool           | Vite                           | `8.x`                                                                                |
 | Language             | TypeScript                     | `5.x`                                                                                |
 | Styling              | Tailwind CSS                   | `4.x`                                                                                |
 | UI components        | shadcn/ui                      | Package version must be defined in `package.json` by the implementing developer. |
@@ -1285,8 +1286,7 @@ This example is internally consistent with the recommendation rules because it c
 | Local UI state       | Zustand                        | `5.x`                                                                                |
 | Forms                | React Hook Form                | `7.x`                                                                                |
 | Validation           | Zod                            | `4.x`                                                                                |
-| Unit/component tests | Vitest + React Testing Library | Vitest `3.x`, RTL `16.x`                                                             |
-| E2E tests            | Playwright                     | `1.x`                                                                                |
+| Unit/component tests | Vitest + React Testing Library | Vitest `4.x`, RTL `16.x`                                                             |
 | Hosting target       | Vercel                         | Managed platform, no application package version.                                    |
 
 Implementation rule:
@@ -1550,7 +1550,7 @@ Performance optimizations must not hide verification context. Evidence, risk sig
 | Password hashing          | Argon2id using `argon2` package                                                | `^0.44.0`                                         |
 | Environment variables     | `dotenv`                                                                       | `^17.4.2`                                         |
 | API documentation         | OpenAPI / Swagger                                                              | Nest Swagger-compatible                           |
-| Testing                   | Jest + Supertest                                                               | Jest `30.x`, Supertest `7.x`                      |
+| Testing                   | TypeScript validation, Prisma validation, frontend Vitest tests, and manual API smoke tests | Vitest `4.x` for frontend tests                   |
 | Backend hosting target    | Render                                                                         | Managed platform, no application package version. |
 
 Implementation rule:
@@ -2988,7 +2988,7 @@ Containers:
 
 | Container | Technology | Responsibility |
 |---|---|---|
-| Frontend Web App | React 19, TypeScript 5, Vite 7 | Provides user interface for authentication, verification, history, and reports. |
+| Frontend Web App | React 19, TypeScript 5, Vite 8 | Provides user interface for authentication, verification, history, and reports. |
 | Backend API | NestJS 11, TypeScript 5 | Owns business workflow, APIs, auth, integrations, scoring, and persistence. |
 | PostgreSQL Database | Supabase PostgreSQL | Stores users, cases, evidence, risks, audit logs, cache, and tokens. |
 | Object Storage | Supabase Storage or equivalent | Stores uploaded images and screenshots. |
@@ -3344,6 +3344,10 @@ Required validation commands:
 ```powershell
 npm install
 npm run validate
+npm run typecheck:frontend
+npx tsc --project tsconfig.backend.json --noEmit
+npm run build:frontend
+npm run test:frontend
 git diff --check
 ```
 
@@ -3356,17 +3360,6 @@ git grep -n "Pending\|pending\|goal-map\|Goal Map\|mvp-scope.md\|problem-stateme
 git grep -n "Stores metadata for images or screenshots. Stores metadata" -- ':!README.md' ':!.github/agents/*'
 $encodingArtifactPattern = "$([char]0x00D4)|$([char]0x00C3)"
 Select-String -Path README.md,docs/agent-findings.md -Pattern $encodingArtifactPattern
-```
-
-Extended validation commands required for full MVP release:
-
-```powershell
-npm run lint
-npm run test
-npm run build
-npm run test:e2e
-npm run db:migrate
-npm run db:seed
 ```
 
 Rule:
@@ -3382,7 +3375,7 @@ The target CI/CD pipeline must execute validations in this order:
 | Stage               | Purpose                                                                                       |
 | ------------------- | --------------------------------------------------------------------------------------------- |
 | Install             | Install project dependencies.                                                                 |
-| Static validation   | Validate formatting, TypeScript, linting, and repository consistency checks.                  |
+| Static validation   | Validate Prisma formatting, TypeScript, frontend build readiness, tests, and repository consistency checks. |
 | Database validation | Validate Prisma schema and DBML alignment.                                                    |
 | Unit tests          | Run deterministic unit tests for frontend and backend modules.                                |
 | Integration tests   | Run API, repository, and contract tests defined by the MVP contracts.                         |
