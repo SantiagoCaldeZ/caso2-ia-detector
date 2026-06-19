@@ -1330,6 +1330,24 @@ src/frontend/
     ├── errors/
     └── types/
 ```
+#### 4.3.1 Frontend Implementation Reference Map
+
+The frontend contract is implemented under `src/frontend`. These references allow developers to jump from this README to the exact files that implement each UI responsibility.
+
+| Responsibility | Source path | Notes |
+|---|---|---|
+| Route registration and protected routes | [`src/frontend/app/routes.tsx`](src/frontend/app/routes.tsx) | Defines `/login`, `/register`, `/app`, `/app/verification/:caseId`, `/app/history`, and `/app/history/:caseId`. |
+| Login page | [`src/frontend/features/auth/pages/LoginPage.tsx`](src/frontend/features/auth/pages/LoginPage.tsx) | Handles login form validation, login action, error display, and navigation to `/app`. |
+| Register page | [`src/frontend/features/auth/pages/RegisterPage.tsx`](src/frontend/features/auth/pages/RegisterPage.tsx) | Handles account creation form validation, register action, and return navigation to login. |
+| Main verification workspace | [`src/frontend/features/verification/pages/VerificationHubPage.tsx`](src/frontend/features/verification/pages/VerificationHubPage.tsx) | Handles text, URL, and image input modes; image upload; verification submission; and recent cases. |
+| Verification result page | [`src/frontend/features/verification/pages/VerificationResultPage.tsx`](src/frontend/features/verification/pages/VerificationResultPage.tsx) | Loads one verification report and delegates report rendering to `VerificationReportView`. |
+| History page | [`src/frontend/features/history/pages/VerificationHistoryPage.tsx`](src/frontend/features/history/pages/VerificationHistoryPage.tsx) | Loads the current user's previous verification cases and navigates to case detail. |
+| History case detail page | [`src/frontend/features/history/pages/VerificationCaseDetailPage.tsx`](src/frontend/features/history/pages/VerificationCaseDetailPage.tsx) | Loads a saved case from history and reuses `VerificationReportView`. |
+| Shared report renderer | [`src/frontend/shared/components/report/VerificationReportView.tsx`](src/frontend/shared/components/report/VerificationReportView.tsx) | Renders extracted claim, partial report warning, recommendation, scores, evidence, risk signals, and audit trail. |
+| Frontend API client | [`src/frontend/shared/api/verificationApi.ts`](src/frontend/shared/api/verificationApi.ts) | Encapsulates frontend calls for uploads, verification creation, history, and detail. |
+| HTTP client and API error normalization | [`src/frontend/shared/api/httpClient.ts`](src/frontend/shared/api/httpClient.ts) | Defines the shared Axios client and `toApiError` behavior. |
+| Frontend DTOs/types | [`src/frontend/shared/types/verification.ts`](src/frontend/shared/types/verification.ts) | Defines frontend report, evidence, risk, history, and request types. |
+| User-facing recommendation labels | [`src/frontend/shared/components/report/labels.ts`](src/frontend/shared/components/report/labels.ts) | Maps internal recommendation enums to user-facing editorial labels. |
 
 ### 4.4 Page Contract — `/login`
 
@@ -3084,16 +3102,16 @@ Components:
 
 ## 13. UX Prototype and Testing Evidence
 
-### 13.1 UX Artifacts Contract
+### 13.1 Current UX Artifacts
 
-UX evidence is controlled: only final prototype exports and real Maze results are committed. No UX metrics are documented without participant results.
+UX evidence is controlled: only final prototype exports and real Maze results are committed. No UX metrics are documented without participant results. The results are used as evidence for usability validation and as future refinement input.
 
 | Artifact                 | Link                                                                                                                    | Purpose                                                                     |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Figma Prototype          | [Open Figma prototype](https://www.figma.com/proto/mvwLNkVDtvMAkDZA6vkggb/IA-Detector?node-id=0-1&t=76UhFVuQWoHqdmfs-1) | Interactive prototype for the MVP flow.                                     |
 | Maze Test                | [Open Maze test](https://t.maze.co/510125135)                                                                           | Usability test for navigation and comprehension.                            |
-| Prototype Assets Folder  | [Open prototype assets](docs/assets/prototype/)                                                                         | Final exported screens are stored here when approved.                       |
-| UX Testing Assets Folder | [Open UX testing assets](docs/assets/ux-testing/)                                                                       | Maze result evidence is stored here when participant results are available. |
+| Prototype Assets Folder  | [Open prototype assets](docs/assets/prototype/)                                                                         | Final exported screens are stored here.                       |
+| UX Testing Assets Folder | [Open UX testing assets](docs/assets/ux-testing/)                                                                       | Maze result evidence is stored here. |
 
 ### 13.2 UX Language Rules
 
@@ -3112,11 +3130,11 @@ The prototype and frontend must use editorial analysis language.
 
 ### 13.3 Prototype Evidence Rule
 
-The Figma prototype is the source of truth for the intended UI flow.
+The Figma prototype is the current source of truth for UI flow.
 
 Prototype screenshots are committed only when the prototype is approved as final. This prevents outdated visual evidence from being stored in the repository.
 
-Final screenshots must be stored in [prototype assets](docs/assets/prototype/).
+Final screenshots are stored in [prototype assets](docs/assets/prototype/).
 
 ### 13.4 UX Testing Evidence Rule
 
@@ -3124,78 +3142,186 @@ UX metrics must not be manually invented.
 
 Maze results are added only after real participants complete the test. When available, exported evidence must be stored in [UX testing assets](docs/assets/ux-testing/).
 
-### 13.5 UX Correction Traceability Rule
+### 13.5 UX Test Context
 
-When Maze evidence exists, each correction must be traceable:
-
-| Required Field | Meaning |
+| Item | Value |
 |---|---|
-| Test finding | What users struggled with or misunderstood. |
-| Correction applied | What was changed in the prototype. |
-| Affected screen | Which prototype screen changed. |
-| Evidence link | Link to screenshot or Maze evidence. |
+| Tool | Maze |
+| Prototype source | Figma prototype |
+| Participants | 5 |
+| Participant profile | Design students external to the project team |
+| Main objective | Validate usability, navigation, comprehension of the report, and clarity of the verification workflow |
+| Evidence collected | Task metrics, response summaries, heatmaps, satisfaction ratings, and open comments |
+| Documentation scope | Metrics, observations, heatmaps, satisfaction ratings, and participant comments. |
 
-No correction should be documented as applied unless the prototype was actually changed.
+### 13.6 Participant Background
 
-### 13.6 UX Ownership and Evidence Responsibility
+The first question measured familiarity with verification or fact-checking tools.
 
-UX prototype and testing artifacts are owned by the UX/prototyping track. The technical design track defines how those artifacts must be integrated into this repository, but UX results must only be added when they come from real prototype work and real participant sessions.
+![Participant familiarity](docs/assets/ux-testing/Test_P1.jpg)
 
-| UX Artifact                | Responsible Area | Repository Location or Reference                                            | Evidence Rule                                                                    |
-| -------------------------- | ---------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Figma prototype            | UX / Prototype   | Figma link in this section and exported screens in `docs/assets/prototype/` | Add only the final reviewed prototype link or screenshots.                       |
-| Maze or equivalent UX test | UX / Prototype   | Maze link in this section and exported results in `docs/assets/ux-testing/` | Add only after the test is configured and executed.                              |
-| Participant sessions       | UX Testing       | UX testing summary table in this section or supporting docs                 | Use at least 4 participants from the design group who are not part of this team. |
-| UX tasks                   | UX Testing       | UX testing task table                                                       | Define concrete tasks before testing starts.                                     |
-| UX observations            | UX Testing       | UX findings table                                                           | Add only observations collected during real sessions.                            |
-| UX corrections             | UX / Prototype   | UX correction traceability table                                            | Each correction must reference the issue it solves and the design decision used. |
+| Answer | Result |
+|---|---:|
+| Little familiar | 60% (3 participants) |
+| Very familiar | 20% (1 participant) |
+| Unfamiliar | 20% (1 participant) |
+| Quite familiar | 0% (0 participants) |
 
-Implementation rule:
+**Interpretation:** most participants were not expert users of fact-checking tools. This supports the need for clear terminology and a guided report structure.
 
-```text
-The repository must not present UX testing results as completed until participant sessions have actually been executed and documented.
-```
+### 13.7 UX Task Summary
 
-### 13.7 Required UX Testing Task Format
+| Task ID | Task Goal | Starting Screen | Success Criteria | Evidence |
+|---|---|---|---|---|
+| `UX-TASK-01` | Access the application through login/register flow. | Login screen | Participant reaches the main verification workspace. | [Metrics](docs/assets/ux-testing/Test_P2.1.png), [responses](docs/assets/ux-testing/Test_P2.2.png), [heatmap 1](docs/assets/ux-testing/Test_P2_Heatmap1.png), [heatmap 2](docs/assets/ux-testing/Test_P2_Heatmap2.jpg) |
+| `UX-TASK-02` | Submit suspicious content for analysis. | Main verification screen | Participant selects or uses the content input, starts analysis, reaches processing/result flow. | [Metrics](docs/assets/ux-testing/Test_P3.1.png), [responses](docs/assets/ux-testing/Test_P3.2.png), [heatmap 1](docs/assets/ux-testing/Test_P3_heatmap1.jpg), [heatmap 2](docs/assets/ux-testing/Test_P3_heatmap2.jpg), [heatmap 3](docs/assets/ux-testing/Test_P3_heatmap3.jpg) |
+| `UX-TASK-03` | Understand processing and report meaning. | Processing/result screens | Participant recognizes that the system generates an analysis report and can interpret the editorial recommendation. | [Processing answer](docs/assets/ux-testing/Test_P3.3.jpg), [recommendation answer](docs/assets/ux-testing/Test_P3.4.jpg) |
+| `UX-TASK-04` | Find previous verification cases. | Main screen or history screen | Participant opens history and accesses a previous report. | [Task evidence](docs/assets/ux-testing/Test_P4.1.png), [responses](docs/assets/ux-testing/Test_P4.2.png), [heatmap 1](docs/assets/ux-testing/Test_P4_heatmap1.jpg), [heatmap 2](docs/assets/ux-testing/Test_P4_heatmap2.jpg) |
+| `UX-TASK-05` | Confirm understanding of the report nature and overall clarity. | Final survey | Participant distinguishes editorial recommendation from absolute truth and rates clarity/orientation. | [report nature](docs/assets/ux-testing/Test_P5.1.jpg), [clarity](docs/assets/ux-testing/Test_P5.2.jpg), [orientation](docs/assets/ux-testing/Test_P5.3.jpg), [comments](docs/assets/ux-testing/Test_P5.4.png) |
 
-When UX testing evidence is added, each task must be documented using the following structure.
+### 13.8 Task 1 — Register / Access the Application
 
-| Field                | Required Content                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| Task ID              | Stable identifier. Example: `UX-TASK-01`.                                                |
-| Task Goal            | What the participant must accomplish.                                                    |
-| Starting Screen      | Prototype screen where the task begins.                                                  |
-| Success Criteria     | How the team determines whether the task was completed.                                  |
-| Observed Issues      | Navigation, comprehension, accessibility, visual hierarchy, or consistency issues found. |
-| Participant Comments | Relevant comments collected during the session.                                          |
-| Result               | Completed, partially completed, or not completed.                                        |
+![Task 1 metrics](docs/assets/ux-testing/Test_P2.1.png)
 
-Recommended task examples:
+![Task 1 responses](docs/assets/ux-testing/Test_P2.2.png)
 
-| Task ID      | Task Goal                                | Success Criteria                                                                                                             |
-| ------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `UX-TASK-01` | Submit suspicious text for verification. | Participant identifies the input area, selects text mode, submits content, and understands that a report is being generated. |
-| `UX-TASK-02` | Interpret the verification report.       | Participant can explain evidence score, risk score, source agreement, and recommended editorial action.                      |
-| `UX-TASK-03` | Find previous verification cases.        | Participant navigates to history and opens a saved case.                                                                     |
-| `UX-TASK-04` | Understand a provider or OCR warning.    | Participant notices the warning and understands that the report requires careful manual review.                              |
+| Metric | Result |
+|---|---:|
+| Success rate | 100% |
+| Drop-off | 0% |
+| Average duration | 28.3 seconds |
+| Misclick rate | 77.8% |
+| Responses | 5 |
 
-### 13.8 UX Findings and Correction Format
+**Heatmaps**
 
-When UX testing is completed, findings and corrections must be documented using this format.
+![Task 1 heatmap login](docs/assets/ux-testing/Test_P2_Heatmap1.png)
 
-| Finding ID   | Related Task | Problem Detected                         | Evidence                                 | Correction Applied                       | Design Criterion                                                                                          |
-| ------------ | ------------ | ---------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `UX-FIND-01` | `UX-TASK-01` | Describe the issue found during testing. | Screenshot, Maze result, or observation. | Describe the prototype or UI correction. | Explain why this correction improves usability, navigation, accessibility, comprehension, or consistency. |
+![Task 1 heatmap register](docs/assets/ux-testing/Test_P2_Heatmap2.jpg)
 
-Rules:
+**Result:** all participants completed the access task successfully. Heatmaps show interactions around the login fields, register link, and registration form fields. The task had no drop-off and all 5 responses were recorded.
 
-| Rule                  | Requirement                                                                               |
-| --------------------- | ----------------------------------------------------------------------------------------- |
-| No fabricated results | Do not add participant metrics, comments, or findings that were not collected.            |
-| No anonymous guessing | If a participant comment is summarized, it must come from an actual session.              |
-| Privacy               | Do not include participant personal data beyond anonymous labels such as `Participant 1`. |
-| Traceability          | Each correction must connect to a finding or observed usability issue.                    |
-| README alignment      | If a UX correction changes page behavior, section 4 must be updated in the same commit.   |
+### 13.9 Task 2 — Analyze Suspicious Content
+
+![Task 2 metrics](docs/assets/ux-testing/Test_P3.1.png)
+
+![Task 2 responses](docs/assets/ux-testing/Test_P3.2.png)
+
+| Metric | Result |
+|---|---:|
+| Success rate | 100% |
+| Drop-off | 0% |
+| Average duration | 32.1 seconds |
+| Misclick rate | 72.5% |
+| Responses | 5 |
+
+**Heatmaps**
+
+![Task 2 heatmap selector](docs/assets/ux-testing/Test_P3_heatmap1.jpg)
+
+![Task 2 heatmap input and analyze button](docs/assets/ux-testing/Test_P3_heatmap2.jpg)
+
+![Task 2 heatmap processing result button](docs/assets/ux-testing/Test_P3_heatmap3.jpg)
+
+**Result:** all participants completed the analysis flow. Heatmaps show activity around the content type selector, input/upload area, analysis button, and result action. The task had 100% success and no drop-off.
+
+### 13.10 Comprehension Questions — Processing and Report Meaning
+
+![Processing comprehension](docs/assets/ux-testing/Test_P3.3.jpg)
+
+| Question | Correct interpretation | Result |
+|---|---|---:|
+| What is happening on the processing screen? | The system is generating an analysis report. | 100% |
+
+**Result:** all participants understood that the system was generating a report, not publishing or deleting content.
+
+![Editorial recommendation comprehension](docs/assets/ux-testing/Test_P3.4.jpg)
+
+| Question | Correct interpretation | Result |
+|---|---|---:|
+| What does the recommendation mean? | The content may continue or not depending on editorial review. | 80% |
+
+**Result:** 4 of 5 participants correctly interpreted the editorial recommendation. One participant selected `No está claro`.
+
+### 13.11 Task 3 — Review Previous Searches in History
+
+![Task 3 instruction and duration](docs/assets/ux-testing/Test_P4.1.png)
+
+![Task 3 responses](docs/assets/ux-testing/Test_P4.2.png)
+
+| Metric | Result |
+|---|---:|
+| Average duration | 45 seconds |
+| Responses | 5 |
+
+**Heatmaps**
+
+![Task 3 heatmap history navigation](docs/assets/ux-testing/Test_P4_heatmap1.jpg)
+
+![Task 3 heatmap open result](docs/assets/ux-testing/Test_P4_heatmap2.jpg)
+
+**Result:** users identified the history entry point and opened a previous analysis. This task had the longest average duration among the reported task flows.
+
+### 13.12 Final Comprehension and Satisfaction Questions
+
+![Report nature comprehension](docs/assets/ux-testing/Test_P5.1.jpg)
+
+| Answer | Result |
+|---|---:|
+| Recomendación editorial | 100% |
+| Verdad absoluta | 0% |
+| No se entiende | 0% |
+
+**Result:** all participants identified the output as an editorial recommendation instead of an absolute truth decision.
+
+![General clarity rating](docs/assets/ux-testing/Test_P5.2.jpg)
+
+| Rating | Result |
+|---|---:|
+| 3 | 40% |
+| 4 | 20% |
+| 5 | 40% |
+
+**Average clarity:** 4.0 / 5
+
+![Orientation rating](docs/assets/ux-testing/Test_P5.3.jpg)
+
+| Rating | Result |
+|---|---:|
+| 6 | 20% |
+| 7 | 20% |
+| 8 | 20% |
+| 9 | 20% |
+| 10 | 20% |
+
+**Average orientation:** 8.0 / 10
+
+![Open comments](docs/assets/ux-testing/Test_P5.4.png)
+
+**Open comments received:**
+
+- "todo bien gente, muy bonito su proyecto. Me parece muy intuitivo"
+- "Ninguna, en general es intuitivo"
+- "Un poco vago el resultado, pero en general bien"
+- "Mucho texto en pantalla de subida de archivos"
+- "Creo que el flujo me enredó un toque"
+
+### 13.13 UX Results Summary
+
+| Result ID | Evidence | Result observed |
+|---|---|---|
+| `UX-R01` | Task 1 metrics and heatmaps | Access flow reached 100% success with 0% drop-off and an average duration of 28.3 seconds. |
+| `UX-R02` | Task 2 metrics and heatmaps | Suspicious content analysis flow reached 100% success with 0% drop-off and an average duration of 32.1 seconds. |
+| `UX-R03` | Processing comprehension question | 100% of participants understood that the system generates an analysis report during processing. |
+| `UX-R04` | Editorial recommendation question | 80% of participants correctly interpreted the editorial recommendation; 20% selected `No está claro`. |
+| `UX-R05` | History task evidence | Participants opened previous analysis results from history. The average duration was 45 seconds. |
+| `UX-R06` | Final report nature question | 100% of participants understood that IA Detector provides an editorial recommendation rather than an absolute truth verdict. |
+| `UX-R07` | Final ratings | Average general clarity was 4.0 / 5 and average orientation was 8.0 / 10. |
+| `UX-R08` | Open comments | Participants described the project as intuitive overall, while also mentioning text density, report vagueness, and some flow confusion. |
+
+### 13.14 UX Testing Conclusion
+
+The UX test results support the prototype's ability to communicate the main IA Detector workflow. The access and analysis tasks reached 100% completion, the processing screen was correctly understood by all participants, and all participants recognized the report as an editorial recommendation rather than an absolute truth verdict. The final survey produced an average clarity rating of 4.0 / 5 and an average orientation rating of 8.0 / 10.
 
 ---
 
@@ -3216,6 +3342,45 @@ This command runs:
 ```text
 prisma format && prisma validate
 ```
+
+#### 14.1.1 Local MVP Execution on Windows
+
+The repository includes a Windows helper script for local MVP execution:
+
+```powershell
+./run-app-windows.bat
+```
+
+The script is intended for local demo use. It performs the following sequence:
+
+1. Moves the terminal to the project folder.
+2. Checks that `npm` is available.
+3. Installs dependencies with `npm install` when `node_modules/` does not exist.
+4. Starts the local Prisma development database helper command.
+5. Runs Prisma generation and schema push commands.
+6. Opens one terminal for the backend with `npm run dev:backend`.
+7. Opens one terminal for the frontend with `npm run dev:frontend`.
+8. Prints the local URLs for frontend, backend API, and health check.
+
+Manual equivalent commands:
+
+```powershell
+npm install
+npm run db:generate
+npm run db:push
+npm run dev:backend
+npm run dev:frontend
+```
+
+Expected local URLs:
+
+```text
+Frontend: http://localhost:5173
+Backend API: http://localhost:3000/api
+Health: http://localhost:3000/api/health
+```
+
+Developer note: if the `.bat` script fails without enough detail, run the manual commands one by one so the failing step can be identified.
 
 ### 14.2 Target Environments
 
@@ -3554,57 +3719,121 @@ caso2-ia-detector/
 │   └── schema.prisma
 │
 └── src/
-    └── backend/
-        ├── main.ts
-        ├── app.module.ts
+    ├── backend/
+    │   ├── main.ts
+    │   ├── app.module.ts
+    │   │
+    │   ├── api/
+    │   │   ├── controllers/
+    │   │   │   ├── AuthController.ts
+    │   │   │   ├── HealthController.ts
+    │   │   │   ├── UploadController.ts
+    │   │   │   └── VerificationController.ts
+    │   │   │
+    │   │   ├── dto/
+    │   │   │   ├── auth/
+    │   │   │   │   ├── AuthenticatedRequest.ts
+    │   │   │   │   ├── AuthResponseDTO.ts
+    │   │   │   │   ├── LoginRequestDTO.ts
+    │   │   │   │   ├── RegisterRequestDTO.ts
+    │   │   │   │   └── UserDTO.ts
+    │   │   │   │
+    │   │   │   └── verification/
+    │   │   │       ├── CreateVerificationRequestDTO.ts
+    │   │   │       ├── VerificationAnalysisReportDTO.ts
+    │   │   │       └── VerificationHistoryItemDTO.ts
+    │   │   │
+    │   │   └── guards/
+    │   │       └── JwtAuthGuard.ts
+    │   │
+    │   ├── application/
+    │   │   ├── auth/
+    │   │   │   ├── AuthModule.ts
+    │   │   │   ├── LoginService.ts
+    │   │   │   ├── PasswordHasher.ts
+    │   │   │   └── RegisterService.ts
+    │   │   │
+    │   │   ├── health/
+    │   │   │   └── HealthService.ts
+    │   │   │
+    │   │   └── verification/
+    │   │       ├── CreateVerificationCaseService.ts
+    │   │       ├── GetVerificationCaseService.ts
+    │   │       ├── ListVerificationHistoryService.ts
+    │   │       └── VerificationModule.ts
+    │   │
+    │   └── infrastructure/
+    │       └── persistence/
+    │           ├── prisma/
+    │           │   ├── PrismaModule.ts
+    │           │   └── PrismaService.ts
+    │           │
+    │           └── repositories/
+    │               ├── UserRepository.ts
+    │               └── VerificationRepository.ts
+    └── frontend/
+        ├── app/
+        │   ├── App.tsx
+        │   ├── main.tsx
+        │   ├── routes.tsx
+        │   ├── styles.css
+        │   └── providers/
+        │       ├── AuthProvider.tsx
+        │       └── QueryProvider.tsx
         │
-        ├── api/
-        │   ├── controllers/
-        │   │   ├── AuthController.ts
-        │   │   ├── HealthController.ts
-        │   │   └── VerificationController.ts
-        │   │
-        │   ├── dto/
-        │   │   ├── auth/
-        │   │   │   ├── AuthenticatedRequest.ts
-        │   │   │   ├── AuthResponseDTO.ts
-        │   │   │   ├── LoginRequestDTO.ts
-        │   │   │   ├── RegisterRequestDTO.ts
-        │   │   │   └── UserDTO.ts
-        │   │   │
-        │   │   └── verification/
-        │   │       ├── CreateVerificationRequestDTO.ts
-        │   │       ├── VerificationAnalysisReportDTO.ts
-        │   │       └── VerificationHistoryItemDTO.ts
-        │   │
-        │   └── guards/
-        │       └── JwtAuthGuard.ts
-        │
-        ├── application/
+        ├── features/
         │   ├── auth/
-        │   │   ├── AuthModule.ts
-        │   │   ├── LoginService.ts
-        │   │   ├── PasswordHasher.ts
-        │   │   └── RegisterService.ts
+        │   │   └── pages/
+        │   │       ├── LoginPage.tsx
+        │   │       └── RegisterPage.tsx
         │   │
-        │   ├── health/
-        │   │   └── HealthService.ts
+        │   ├── history/
+        │   │   └── pages/
+        │   │       ├── VerificationCaseDetailPage.tsx
+        │   │       └── VerificationHistoryPage.tsx
         │   │
         │   └── verification/
-        │       ├── CreateVerificationCaseService.ts
-        │       ├── GetVerificationCaseService.ts
-        │       ├── ListVerificationHistoryService.ts
-        │       └── VerificationModule.ts
+        │       └── pages/
+        │           ├── VerificationHubPage.tsx
+        │           └── VerificationResultPage.tsx
         │
-        └── infrastructure/
-            └── persistence/
-                ├── prisma/
-                │   ├── PrismaModule.ts
-                │   └── PrismaService.ts
-                │
-                └── repositories/
-                    ├── UserRepository.ts
-                    └── VerificationRepository.ts
+        └── shared/
+            ├── api/
+            │   ├── authApi.ts
+            │   ├── httpClient.ts
+            │   └── verificationApi.ts
+            │
+            ├── components/
+            │   ├── layout/
+            │   │   └── AppLayout.tsx
+            │   │
+            │   ├── report/
+            │   │   ├── AuditTrailPanel.tsx
+            │   │   ├── EvidenceList.tsx
+            │   │   ├── labels.ts
+            │   │   ├── RecommendationBanner.tsx
+            │   │   ├── RiskSignalList.tsx
+            │   │   ├── ScoreSummary.tsx
+            │   │   └── VerificationReportView.tsx
+            │   │
+            │   └── ui/
+            │       ├── alert.tsx
+            │       ├── badge.tsx
+            │       ├── button.tsx
+            │       ├── card.tsx
+            │       ├── input.tsx
+            │       ├── label.tsx
+            │       ├── skeleton.tsx
+            │       └── textarea.tsx
+            │
+            ├── errors/
+            │   └── apiError.ts
+            │
+            ├── lib/
+            │   └── utils.ts
+            │
+            └── types/
+                └── verification.ts
 ```
 
 Responsibility summary:
